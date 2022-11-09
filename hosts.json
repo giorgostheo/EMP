@@ -1,0 +1,26 @@
+{
+    "alpha": {
+        "ip": "snf-33033.ok-kno.grnetcloud.net",
+        "local_ip": "192.168.0.2",
+        "user": "user",
+        "password": "u19S01HvhJ",
+        "port": 22,
+        "master_callsign": "",
+        "paths": {
+            "user": "/home/user",
+            "conda": "/home/user/miniconda3"
+        }
+    },
+    "bravo": {
+        "ip": "snf-33044.ok-kno.grnetcloud.net",
+        "local_ip": "192.168.0.3",
+        "user": "user",
+        "password": "9zmmHQbdIz",
+        "port": 22,
+        "master_callsign": "alpha",
+        "paths": {
+            "user": "/home/user",
+            "conda": "/home/user/miniconda3"
+        }
+    }
+}

@@ -22,7 +22,7 @@ import shlex
 
 print(art)
 
-
+# starting session variable
 session=commands.command_checkall(
     {'curent_host':'localhost', 
     'verbose': True, 

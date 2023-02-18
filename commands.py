@@ -7,48 +7,46 @@ from interactive import interactive_shell
 import sys
 current_module = sys.modules[__name__]
 
-class MySFTPClient(paramiko.SFTPClient):
-    '''
-    This is here to allow the sftp connection to clone the modules. Not the most elegant solution.
-    TODO: Add this to a new file and make it the primary connection interface (not only sftp for ex.)
-    '''
-    def put_dir(self, source, target):
-        ''' Uploads the contents of the source directory to the target path. The
-            target directory needs to exists. All subdirectories in source are 
-            created under target.
-        '''
-        for item in os.listdir(source):
-            if os.path.isfile(os.path.join(source, item)):
-                self.put(os.path.join(source, item), '%s/%s' % (target, item))
-            else:
-                self.mkdir('%s/%s' % (target, item), ignore_existing=True)
-                self.put_dir(os.path.join(source, item), '%s/%s' % (target, item))
 
-    def mkdir(self, path, mode=511, ignore_existing=False):
-        ''' Augments mkdir by adding an option to not fail if the folder exists  '''
-        try:
-            super(MySFTPClient, self).mkdir(path, mode)
-        except IOError:
-            if ignore_existing:
-                pass
-            else:
-                raise
-
-
-class CommandsClient():
+class Interface():
     '''
     Class implementaton for all available commands
     '''
     
-    def __init__(self):
+    class MySFTPClient(paramiko.SFTPClient):
         '''
-        Initialize parameters, create session dict
+        This is here to allow the sftp connection to clone the modules. Not the most elegant solution.
+        TODO: Add this to a new file and make it the primary connection interface (not only sftp for ex.)
         '''
-        self.session = {'curent_host':'localhost', 
-                        'verbose': True, 
-                        'connections': {}
-                        }
-        
+        def put_dir(self, source, target):
+            ''' Uploads the contents of the source directory to the target path. The
+                target directory needs to exists. All subdirectories in source are 
+                created under target.
+            '''
+            for item in os.listdir(source):
+                if os.path.isfile(os.path.join(source, item)):
+                    self.put(os.path.join(source, item), '%s/%s' % (target, item))
+                else:
+                    self.mkdir('%s/%s' % (target, item), ignore_existing=True)
+                    self.put_dir(os.path.join(source, item), '%s/%s' % (target, item))
+
+        def mkdir(self, path, mode=511, ignore_existing=False):
+            ''' Augments mkdir by adding an option to not fail if the folder exists  '''
+            try:
+                super(__class__, self).mkdir(path, mode)
+            except IOError:
+                if ignore_existing:
+                    pass
+                else:
+                    raise
+
+
+    def __init__(self, connections={}, verbose=True):
+        '''
+        Initialize parameters, execute init commands
+        '''
+        self.connections = connections
+        self.verbose = verbose
         self.command_checkall()
 
     def createSSHClient(self,server, port, user, password, sock=None):
@@ -67,14 +65,14 @@ class CommandsClient():
         TODO: Create a single interface that runs smth in all nodes.
         Ex. Instead of checkall, runall etc. create one func that take a command as input (check, run etc.) and runs on all nodes.
         '''
-        verbose = self.session['verbose']
+        verbose = self.verbose
 
         if verbose: print('[+] Connecting to all hosts')
 
-        if not self.session['connections']:
+        if not self.connections:
             hosts = json.load(open('hosts.json'))
         else:
-            hosts = self.session['connections']
+            hosts = self.connections
 
         for hostname in hosts:
             host = hosts[hostname]
@@ -83,10 +81,10 @@ class CommandsClient():
                 transport = hosts[host['master_callsign']]['client'].get_transport()
                 channel = transport.open_channel("direct-tcpip", (host['ip'], host['port']), (hosts[host['master_callsign']]['ip'], hosts[host['master_callsign']]['port']))
                 host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel)
-                host['sftp'] = MySFTPClient.from_transport(host['client'].get_transport())
+                host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
             else:
                 host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'])
-                host['sftp'] = MySFTPClient.from_transport(host['client'].get_transport())
+                host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
             # except:
             #     host['client'] = None
             #     host['scp'] = None
@@ -99,7 +97,7 @@ class CommandsClient():
                     print(colored(hostname, 'green'), end= " ")
             print()
         
-        self.session['connections'] = hosts
+        self.connections = hosts
 
     def command_tty(self, hostname):
         '''
@@ -107,7 +105,7 @@ class CommandsClient():
         TODO: Not sure if this is the optimal way to do this.
         '''
         try:
-            chan = self.session['connections'][hostname]['client'].invoke_shell()
+            chan = self.connections[hostname]['client'].invoke_shell()
         except:
             raise Exception(f'Host "{hostname}" is unreachable')
         interactive_shell(chan)
@@ -116,29 +114,29 @@ class CommandsClient():
         '''
         Changes global verbosity
         '''
-        if self.session['verbose']:
+        if self.verbose:
             print('Verbose mode off')
-            self.session['verbose'] = False
+            self.verbose = False
         else:
             print('Verbose mode on')
-            self.session['verbose'] = True
+            self.verbose = True
 
     def command_execall(self, command):
         '''
         Same as exec, but for all nodes
         '''
-        verbose = self.session['verbose']
+        verbose = self.verbose
         if verbose: print(f'[*] Executing command "{command}" on all hosts')
-        for hostname in self.session['connections']:
-            self.session = self.command_exec(hostname, command)
+        for hostname in self.connections:
+            self.command_exec(hostname, command)
 
     def command_exec(self, hostname, command):
         '''
         Exec a single command on a specific node.
         '''
-        verbose = self.session['verbose']
+        verbose = self.verbose
         # if verbose: print(f'[*] Executing command "{command}" on host {hostname}')
-        host = self.session['connections'][hostname]
+        host = self.connections[hostname]
         if host['client'] is not None:
             stdin, stdout, stderr = host['client'].exec_command(command)
             if verbose: 
@@ -168,18 +166,18 @@ class CommandsClient():
             it should create the module's environment and install requirements.
         '''
             
-        sftp = self.session['connections'][hostname]['sftp']
+        sftp = self.connections[hostname]['sftp']
         sftp.mkdir(f'modules', ignore_existing=True)
         sftp.mkdir(f'modules/{module}', ignore_existing=True)
         sftp.put_dir(f'modules/{module}', f'modules/{module}')
 
-        self.command_exec(hostname, f'cd modules/{module}; bash init.sh', self.session)
+        self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
 
     def command_exec_module(self, hostname, module):
         '''
         This runs an already deployed module (i.e. executes the run.sh file that needs to be present in the module dir)
         '''
-        self.command_exec(hostname, f'cd modules/{module}; bash run.sh', self.session)
+        self.command_exec(hostname, f'cd modules/{module}; bash run.sh')
 
     def command_scan(self, hostname):
         '''OLD
@@ -193,13 +191,13 @@ class CommandsClient():
             fi
             nmap -n -sn 192.168.0.0/24 -oG - | awk '/Up$/{print $2}'
         """
-        host = self.session['connections'][hostname]
+        host = self.connections[hostname]
         if host['client'] is not None:
             stdin, stdout, stderr = host['client'].exec_command(command_string)
             for line in [ln.strip('\n') for ln in stdout]:
                 try: 
-                    idx = [self.session['connections'][hostname]['local_ip'] for hostname in self.session['connections']].index(line.strip('\n'))
-                    print(colored(f"{line} - {list(self.session['connections'].keys())[idx]}", 'green'))
+                    idx = [self.connections[hostname]['local_ip'] for hostname in self.connections].index(line.strip('\n'))
+                    print(colored(f"{line} - {list(self.connections.keys())[idx]}", 'green'))
                 except:
                     print(colored(line, 'yellow'))
                 # print(colored(line.strip('\n'), 'green'))
@@ -210,29 +208,29 @@ class CommandsClient():
         '''OLD
         Init Dask scheduler
         '''
-        host = self.session['connections'][hostname]
+        host = self.connections[hostname]
         command = f"""
             echo "Initing Scheduler"
             {host['paths']['conda']}/envs/dask/bin/dask-scheduler
             """
-        self.session = self.command_exec(hostname, command)
+        self.command_exec(hostname, command)
         
     def command_dask_start_worker(self, hostname):
         '''OLD
         Init Dask worker
         '''
-        host = self.session['connections'][hostname]
+        host = self.connections[hostname]
         command = f"""
             echo "Initing Worker"
-            {host['paths']['conda']}/envs/dask/bin/dask-worker tcp://{self.session['connections'][host['master_callsign']]['local_ip']}:8786
+            {host['paths']['conda']}/envs/dask/bin/dask-worker tcp://{self.connections[host['master_callsign']]['local_ip']}:8786
             """
-        self.session = self.command_exec(hostname, command, self.session)
+        self.command_exec(hostname, command)
 
     def command_install_conda_dask(self, hostname):
         '''OLD
         Install dask
         '''
-        host = self.session['connections'][hostname]
+        host = self.connections[hostname]
         command = f"""
         CONDA_DIR="{host['paths']['conda']}"
 
@@ -252,7 +250,7 @@ class CommandsClient():
         echo "Conda exists"
         fi
         """
-        self.session = self.command_exec(hostname, command)
+        self.command_exec(hostname, command)
         
 
     # ssh = createSSHClient(config['alpha']['host'], config['alpha']['port'], config['alpha']['uname'], config['alpha']['pass'])

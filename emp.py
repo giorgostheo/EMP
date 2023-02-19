@@ -2,7 +2,8 @@ import json
 from pprint import pprint
 import paramiko
 from scp import SCPClient
-import commands
+from commands import Interface
+from _version import __version__
 
 art = """
   _____ __  __ ____  
@@ -22,18 +23,14 @@ import shlex
 
 print(art)
 
-# starting session variable
-session=commands.command_checkall(
-    {'curent_host':'localhost', 
-    'verbose': True, 
-    'connections': {}}
-)
+#initializing CommandsClient object
+interface = Interface()
 input_session = PromptSession(history=FileHistory('.inp_history'))
 
 
 while 1:
     try:
-        line = input_session.prompt(f'({session["curent_host"]})> ', auto_suggest=AutoSuggestFromHistory())
+        line = input_session.prompt(f'(v{__version__})> ', auto_suggest=AutoSuggestFromHistory())
     except (KeyboardInterrupt, EOFError):
         print('\nbye!')
         break
@@ -42,8 +39,8 @@ while 1:
             break
         else:
             try:
-                func = getattr(commands, 'command_'+line.split(' ')[0])
-                session = func(*shlex.split(line)[1:], session=session) 
+                func = getattr(interface, 'command_'+line.split(' ')[0])
+                func(*shlex.split(line)[1:])
             except Exception as e: print(e)
     except Exception:
         print(traceback.format_exc())

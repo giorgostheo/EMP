@@ -5,7 +5,7 @@ Edge Management Platform - Create and deploy modules to the edge.
 ## Usage
 
 ```Shell
-python deploy.py
+python emp.py
 ```
 
 ### Tips

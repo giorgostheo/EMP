@@ -38,7 +38,6 @@ parser.add_argument("-i", nargs='?', dest='input')
 args, unknown = parser.parse_known_args()
 
 #executing commands if given as command line arguments
-#sys.argv will be greater than 2 only if command line arguments are given
 FILE = args.file
 INPUT = args.input
 if any([FILE,INPUT,unknown]):

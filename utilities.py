@@ -23,7 +23,6 @@ def parse_file(path:str) -> list:
     """
     Parses commands from file
     """
-    print(path)
     with open(Path(path)) as f:
         lines = [line.rstrip() for line in f]
     commands = ';'.join(lines)

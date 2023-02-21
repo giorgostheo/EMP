@@ -23,6 +23,7 @@ import traceback
 from termcolor import colored
 import shlex
 import sys
+import os
 
 print(art)
 
@@ -30,19 +31,20 @@ print(art)
 interface = Interface()
 input_session = PromptSession(history=FileHistory('.inp_history'))
 
-#available actions 
-actions = {
-    '-f': parse_file,
-    '-i': parse_args
-    }
+# Create the parser
+parser = argparse.ArgumentParser()
+parser.add_argument("-f", nargs='?', dest='file')
+parser.add_argument("-i", nargs='?', dest='input')
+args, unknown = parser.parse_known_args()
 
 #executing commands if given as command line arguments
 #sys.argv will be greater than 2 only if command line arguments are given
-if len(sys.argv) > 2:
-    PROGRAM,ACTION,TARGET = sys.argv
+FILE = args.file
+INPUT = args.input
+if any([FILE,INPUT,unknown]):
     try:
-        if ACTION in actions:
-            actions_dict = actions[ACTION](TARGET)
+        if not unknown:
+            actions_dict = parse_file(FILE) if FILE else parse_args(INPUT)
             for action in actions_dict:
                 try:
                     func = getattr(interface, 'command_'+action['command'])
@@ -50,9 +52,11 @@ if len(sys.argv) > 2:
                     func(*shlex.shlex(action['args']))
                 except Exception as e: print(e)
         else:
-            print(f'Argument "{ACTION}" does not exist')
+            print(f'Argument "{unknown[0]}" does not exist')
     except ValueError:
         print('Wrong format')
+    except IOError:
+        print(f'File {FILE} not found')
     except Exception as e:
         print(e)
     sys.exit()

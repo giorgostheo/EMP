@@ -59,13 +59,16 @@ class Interface():
         client.connect(server, port, user, password, sock=sock)
         return client
 
-    def command_checkall(self):
+    def command_checkall(self, verboseOverride=None):
         '''
         Checks if all nodes are up. Can also be used as the starting point for any new command that targets all nodes.
         TODO: Create a single interface that runs smth in all nodes.
         Ex. Instead of checkall, runall etc. create one func that take a command as input (check, run etc.) and runs on all nodes.
         '''
-        verbose = self.verbose
+        if verboseOverride is not None:
+            verbose = verboseOverride
+        else:
+            verbose = self.verbose
 
         if verbose: print('[+] Connecting to all hosts')
 

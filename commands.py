@@ -4,6 +4,7 @@ import paramiko
 from termcolor import colored
 from scp import SCPClient
 from interactive import interactive_shell
+from utilities import VersionControl
 import sys
 current_module = sys.modules[__name__]
 
@@ -145,6 +146,7 @@ class Interface():
                 for line in stderr:
                     print(colored(f"[{hostname}] "+line.strip('\n'), 'red'))
 
+
     def command_ls(self):
         '''
         This lists all commands that are available (locally - this doesnt affect nodes)
@@ -178,6 +180,39 @@ class Interface():
         This runs an already deployed module (i.e. executes the run.sh file that needs to be present in the module dir)
         '''
         self.command_exec(hostname, f'cd modules/{module}; bash run.sh')
+
+    def command_module(self, hostname, module):
+        '''
+        Responsible for deploying and executing a module.
+        If a module already exists, validations or actions are being performed.
+        E.g update enviroment/update files
+        '''
+        should_rebuild = False
+        verbose = self.verbose
+        host = self.connections[hostname]
+        client = host['sftp']
+        client.chdir('modules')
+        client_modules = client.listdir()
+
+        #DEPLOY
+        #check if module exists, if not deploy it
+        if module in client_modules:
+            client.chdir(module)
+            source_dir = os.path.abspath(f'modules/{module}')
+            vc = VersionControl(client,source_dir,verbose)
+            vc.compare_modules()
+            vc.update_target()
+            should_rebuild = vc.should_rebuild
+        else:
+            self.command_deploy_module(hostname,module)
+
+        #REBUILD
+        if should_rebuild:
+            self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
+
+        #EXEC
+        print(f'\n-Running {module}..')
+        self.command_exec_module(hostname,module)
 
     def command_scan(self, hostname):
         '''OLD

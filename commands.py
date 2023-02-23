@@ -59,6 +59,37 @@ class Interface():
         client.connect(server, port, user, password, sock=sock)
         return client
 
+    
+    def hostname_parser(self, hostArg):
+        if hostArg == 'all':
+            self.command_checkall(False)
+            allNodes = json.load(open('hosts.json'))
+            nodesDown = list(set(list(allNodes.keys())).difference(self.connections.keys()))
+            if len(nodesDown) != 0:
+                print(colored('[!]','red'),end=f' The following nodes are down: {nodesDown}. Execution will be performed for the rest.\n')
+                return self.connections.keys()
+            else:
+                return allNodes
+        else:
+            hostArg = hostArg.replace(' ','').split(',')
+            if len(hostArg) > 1:
+                self.command_checkall(False)
+                allNodes = json.load(open('hosts.json'))
+                nonExisting = [name for name in hostArg if name not in allNodes.keys()]
+                if len(nonExisting) != 0:
+                    print(colored('[!]','red'),end=f' The following nodes do not exist: {nonExisting}.\n')
+                    hostArg = filter(lambda i:i not in nonExisting, hostArg)
+                nodesDown = list(set(hostArg).difference(self.connections.keys()))
+                if len(nodesDown) != 0:
+                    print(colored('[!]','red'),end=f' The following nodes are down: {nodesDown}. Execution will be performed for the rest.\n')
+                    return list(set(hostArg).difference(nodesDown))
+                else:
+                    return allNodes
+            else:
+                try:
+                    return [self.connections[hostArg[0]]]
+                except:
+                    print(colored('[!]','red'), end=f'There was an error in the argument \'{hostArg[0]}\'.\n')
 
     def command_checkall(self, verboseOverride=None):
         '''

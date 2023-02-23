@@ -59,7 +59,9 @@ class VersionControl():
 
         hash_md5 = hashlib.md5()
         if remote:
-            file = self.sftp.open(fname, bufsize=32768)
+            file = self.sftp.open(fname)
+            file.prefetch()
+            #file = self.sftp.open(fname, bufsize=32768)
             for chunk in iter(lambda: file.read(4096), b""):
                     hash_md5.update(chunk.strip())
         else:

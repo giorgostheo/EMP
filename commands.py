@@ -59,32 +59,6 @@ class Interface():
         client.connect(server, port, user, password, sock=sock)
         return client
 
-    def command_all(self, command):
-        '''
-        Interface for multi-node command mapping.
-        Input:
-            command: The command to be executed by all the nodes.
-        '''
-        verbose = self.verbose
-
-        if not hasattr(self, f'command_{command}'):
-            if verbose:
-                print(colored('[!]', 'red'), end=f' The command \'{command}\' was not recognized.\n')
-            return
-        elif command in ['checkall', 'verbose', 'ls']:
-            getattr(self, f'command_{command}', lambda:None)()
-            return
-        
-        self.command_checkall(False)
-        all_nodes = json.load(open('hosts.json'))
-        for key in all_nodes.keys():
-            if key not in self.connections.keys():
-                # TODO
-                return
-
-        for hostname in all_nodes.keys():
-            self.command_exec(hostname, command)
-
 
     def command_checkall(self, verboseOverride=None):
         '''

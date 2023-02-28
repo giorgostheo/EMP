@@ -6,6 +6,7 @@ from scp import SCPClient
 from interactive import interactive_shell
 from utilities import VersionControl
 import sys
+from copy import copy
 current_module = sys.modules[__name__]
 
 
@@ -190,29 +191,35 @@ class Interface():
         should_rebuild = False
         verbose = self.verbose
         host = self.connections[hostname]
-        client = host['sftp']
-        client.chdir('modules')
-        client_modules = client.listdir()
+        client = copy(host['sftp'])
+        try:
+            client.chdir('modules')
+        except:
+            client.mkdir('modules')
+            client.chdir('modules')
+        host['sftp'].listdir()
 
-        #DEPLOY
-        #check if module exists, if not deploy it
+        client_modules = client.listdir()
+        # DEPLOY
+        # check if module exists, if not deploy it
         if module in client_modules:
             client.chdir(module)
             source_dir = os.path.abspath(f'modules/{module}')
-            vc = VersionControl(client,source_dir,verbose)
+            vc = VersionControl(client, source_dir, verbose)
             vc.compare_modules()
             vc.update_target()
             should_rebuild = vc.should_rebuild
-        else:
-            self.command_deploy_module(hostname,module)
 
-        #REBUILD
-        if should_rebuild:
-            self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
+        # DEPLOY
+        if should_rebuild or module not in client_modules:
+            if verbose:
+                print('\n-Deploying  module..')
+            self.command_deploy_module(hostname, module)
 
-        #EXEC
-        print(f'\n-Running {module}..')
-        self.command_exec_module(hostname,module)
+        # EXEC
+        if verbose:
+            print(f'\n-Running {module}..')
+        self.command_exec_module(hostname, module)
 
     def command_scan(self, hostname):
         '''OLD

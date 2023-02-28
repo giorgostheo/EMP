@@ -42,13 +42,13 @@ def exec_command_line_option(FILE, INPUT, unknown):
     '''
     if any([FILE, INPUT, unknown]):
         if not unknown:
-            actions = parse_file(FILE) if FILE else parse_args(INPUT)
-            for action in actions:
-                try:
+            try:
+                actions = parse_file(FILE) if FILE else parse_args(INPUT)
+                for action in actions:
                     command, args = action
                     exec_func(interface, command, args)
-                except Exception as e:
-                    print(e)
+            except Exception as e:
+                print(e)
         else:
             print(f'Argument "{unknown[0]}" does not exist')
         sys.exit()

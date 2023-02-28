@@ -62,14 +62,8 @@ class Interface():
     
     def hostname_parser(self, hostArg):
         if hostArg == 'all':
-            self.command_check('all', False)
-            allNodes = json.load(open('hosts.json'))
-            nodesDown = list(set(list(allNodes.keys())).difference(self.connections.keys()))
-            if len(nodesDown) != 0:
-                print(colored('[!]','red'),end=f' The following nodes are down: {nodesDown}. Execution will be performed for the rest.\n')
-                return self.connections.keys()
-            else:
-                return allNodes
+            return json.load(open('hosts.json'))
+
         groups = json.load(open('groups.json'))
         if hostArg in groups:
             return groups[hostArg]
@@ -81,11 +75,7 @@ class Interface():
                 nonExisting = [name for name in hostArg if name not in allNodes.keys()]
                 if len(nonExisting) != 0:
                     print(colored('[!]','red'),end=f' The following nodes do not exist: {nonExisting}.\n')
-                    hostArg = filter(lambda i:i not in nonExisting, hostArg)
-                nodesDown = list(set(hostArg).difference(self.connections.keys()))
-                if len(nodesDown) != 0:
-                    print(colored('[!]','red'),end=f' The following nodes are down: {nodesDown}. Execution will be performed for the rest.\n')
-                    return list(set(hostArg).difference(nodesDown))
+                    return filter(lambda i:i not in nonExisting, hostArg)
                 else:
                     return allNodes
             else:
@@ -181,22 +171,21 @@ class Interface():
         verbose = self.verbose
         # if verbose: print(f'[*] Executing command "{command}" on host {hostname}')
         hosts = self.hostname_parser(hostname)
-        hostNames = list(self.connections.keys())
 
         unavailableNodes = []
 
-        for idx, host in enumerate(hosts):
+        for host in hosts:
             host = self.connections[host]
-            hostn = hostNames[idx]
             if host['client'] is not None:
                 stdin, stdout, stderr = host['client'].exec_command(command)
-                if verbose: 
+                if verbose:
+                    hostn = list(self.connections.keys())[list(self.connections.values()).index(host)]
                     for line in stdout:
                         print(colored(f"[{hostn}] "+line.strip('\n'), 'green'))
                     for line in stderr:
                         print(colored(f"[{hostn}] "+line.strip('\n'), 'red'))
             else:
-                unavailableNodes.append(hostn)
+                unavailableNodes.append(list(self.connections.keys())[list(self.connections.values()).index(host)])
         
         if len(unavailableNodes) > 0:
             print(colored('[!]', 'red'), end = f' The following nodes are not available:\n{unavailableNodes}\nThe execution of the command was not possible.\n')

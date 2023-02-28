@@ -179,6 +179,45 @@ class Interface():
                     print(colored(f"[{hostname}] "+line.strip('\n'), 'green'))
                 for line in stderr:
                     print(colored(f"[{hostname}] "+line.strip('\n'), 'red'))
+    def command_new_group(self, nodeNames, groupName):
+        '''
+        Create group of hosts to run commands on.
+        
+        Inputs:
+            nodeNames: The names of the nodes that form the group.
+        '''
+        nodesList = nodeNames.replace(' ','').split(',')
+
+        hosts = json.load(open('hosts.json'))
+
+        for node in nodesList:
+            if node not in hosts:
+                print(colored('[!]','red'), end=f' Node {node} does not exist.\n')
+                return
+
+        groups = json.load(open('groups.json'))
+
+        if groupName in groups:
+            print(f'A group with name {groupName} already exists. Overwrite?')
+            print('\'y\' - YES\n\'n\' - NO')
+            answer = input('Overwrite? : ')
+            while answer != 'y' and answer != 'n':
+                answer = input('Overwrite? (y - Yes, n - No): ')
+            
+            if answer == 'n':
+                return
+
+        groups[groupName] = nodesList
+
+        with open('groups.json', 'w') as g:
+            json.dump(groups, g)
+    
+    def command_delete_group(self, groupname):
+        groups = json.load(open('groups.json'))
+
+        del groups[groupname]
+        with open('groups.json', 'w') as g:
+            json.dump(groups, g)
 
     def command_ls(self):
         '''

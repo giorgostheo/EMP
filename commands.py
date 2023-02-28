@@ -94,39 +94,53 @@ class Interface():
                 except:
                     print(colored('[!]','red'), end=f'There was an error in the argument \'{hostArg[0]}\'.\n')
 
-    def command_checkall(self, verboseOverride=None):
+    def command_check(self, hostnames, verboseOverride=None):
         '''
-        Checks if all nodes are up. Can also be used as the starting point for any new command that targets all nodes.
-        TODO: Create a single interface that runs smth in all nodes.
-        Ex. Instead of checkall, runall etc. create one func that take a command as input (check, run etc.) and runs on all nodes.
+        Checks if a node or group of nodes are up. Can also be used as the starting point for any new command that targets all nodes.
+        Inputs:
+            hostnames: name of node, name of group or 'all' for all nodes.
+            verboseOverride: Overrides the current verbosity for this function.
         '''
         if verboseOverride is not None:
             verbose = verboseOverride
         else:
             verbose = self.verbose
 
-        if verbose: print('[+] Connecting to all hosts')
-
+        if verbose: print('[+] Connecting to host(s)')
+        
         if not self.connections:
-            hosts = json.load(open('hosts.json'))
+            hostJSON = json.load(open('hosts.json'))
         else:
-            hosts = self.connections
+            hostJSON = self.connections
+
+        if hostnames != 'all':
+            hostn = self.hostname_parser(hostnames)
+            hosts = {}
+            for host in hostn:
+                hosts[host] = hostJSON[host]
+        else:
+            hosts = hostJSON
 
         for hostname in hosts:
             host = hosts[hostname]
-            # try:
+
             if host['master_callsign']:
-                transport = hosts[host['master_callsign']]['client'].get_transport()
-                channel = transport.open_channel("direct-tcpip", (host['ip'], host['port']), (hosts[host['master_callsign']]['ip'], hosts[host['master_callsign']]['port']))
-                host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel)
-                host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
+                transport = hostJSON[host['master_callsign']]['client'].get_transport()
+                channel = transport.open_channel("direct-tcpip", (host['ip'], host['port']), (hostJSON[host['master_callsign']]['ip'], hostJSON[host['master_callsign']]['port']))
+                try:
+                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel)
+                    host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
+                except paramiko.AuthenticationException:
+                    host['client'] = None
+                    host['sftp'] = None
             else:
-                host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'])
-                host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
-            # except:
-            #     host['client'] = None
-            #     host['scp'] = None
-                # print(f'Could not connect to {host["name"]}')
+                try:
+                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'])
+                    host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
+                except paramiko.AuthenticationException:
+                    host['client'] = None
+                    host['sftp'] = None
+
         if verbose:
             for hostname in hosts:
                 if hosts[hostname]['client'] is None:
@@ -134,8 +148,9 @@ class Interface():
                 else:
                     print(colored(hostname, 'green'), end= " ")
             print()
-        
-        self.connections = hosts
+
+        if hostnames == 'all':
+            self.connections = hosts
 
     def command_tty(self, hostname):
         '''

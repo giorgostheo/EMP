@@ -165,14 +165,27 @@ class Interface():
         '''
         verbose = self.verbose
         # if verbose: print(f'[*] Executing command "{command}" on host {hostname}')
-        host = self.connections[hostname]
-        if host['client'] is not None:
-            stdin, stdout, stderr = host['client'].exec_command(command)
-            if verbose: 
-                for line in stdout:
-                    print(colored(f"[{hostname}] "+line.strip('\n'), 'green'))
-                for line in stderr:
-                    print(colored(f"[{hostname}] "+line.strip('\n'), 'red'))
+        hosts = self.hostname_parser(hostname)
+        hostNames = list(self.connections.keys())
+
+        unavailableNodes = []
+
+        for idx, host in enumerate(hosts):
+            host = self.connections[host]
+            hostn = hostNames[idx]
+            if host['client'] is not None:
+                stdin, stdout, stderr = host['client'].exec_command(command)
+                if verbose: 
+                    for line in stdout:
+                        print(colored(f"[{hostn}] "+line.strip('\n'), 'green'))
+                    for line in stderr:
+                        print(colored(f"[{hostn}] "+line.strip('\n'), 'red'))
+            else:
+                unavailableNodes.append(hostn)
+        
+        if len(unavailableNodes) > 0:
+            print(colored('[!]', 'red'), end = f' The following nodes are not available:\n{unavailableNodes}\nThe execution of the command was not possible.\n')
+
     def command_new_group(self, nodeNames, groupName):
         '''
         Create group of hosts to run commands on.

@@ -47,7 +47,7 @@ class Interface():
         '''
         self.connections = connections
         self.verbose = verbose
-        self.command_checkall()
+        self.command_check('all')
 
     def createSSHClient(self,server, port, user, password, sock=None):
         '''
@@ -62,7 +62,7 @@ class Interface():
     
     def hostname_parser(self, hostArg):
         if hostArg == 'all':
-            self.command_checkall(False)
+            self.command_check('all', False)
             allNodes = json.load(open('hosts.json'))
             nodesDown = list(set(list(allNodes.keys())).difference(self.connections.keys()))
             if len(nodesDown) != 0:
@@ -73,7 +73,7 @@ class Interface():
         else:
             hostArg = hostArg.replace(' ','').split(',')
             if len(hostArg) > 1:
-                self.command_checkall(False)
+                self.command_check('all', False)
                 allNodes = json.load(open('hosts.json'))
                 nonExisting = [name for name in hostArg if name not in allNodes.keys()]
                 if len(nonExisting) != 0:
@@ -155,15 +155,6 @@ class Interface():
         else:
             print('Verbose mode on')
             self.verbose = True
-
-    def command_execall(self, command):
-        '''
-        Same as exec, but for all nodes
-        '''
-        verbose = self.verbose
-        if verbose: print(f'[*] Executing command "{command}" on all hosts')
-        for hostname in self.connections:
-            self.command_exec(hostname, command)
 
     def command_exec(self, hostname, command):
         '''

@@ -80,11 +80,19 @@ class Interface():
             if host['master_callsign']:
                 transport = hosts[host['master_callsign']]['client'].get_transport()
                 channel = transport.open_channel("direct-tcpip", (host['ip'], host['port']), (hosts[host['master_callsign']]['ip'], hosts[host['master_callsign']]['port']))
-                host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel)
-                host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
+                try:
+                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel)
+                    host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
+                except paramiko.AuthenticationException:
+                    host['client'] = None
+                    host['sftp'] = None
             else:
-                host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'])
-                host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
+                try:
+                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'])
+                    host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
+                except paramiko.AuthenticationException:
+                    host['client'] = None
+                    host['sftp'] = None
             # except:
             #     host['client'] = None
             #     host['scp'] = None

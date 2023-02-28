@@ -199,8 +199,7 @@ class Interface():
             client.chdir('modules')
 
         client_modules = client.listdir()
-        # DEPLOY
-        # check if module exists, if not deploy it
+        # Check if any changes have been made to the module
         if module in client_modules:
             client.chdir(module)
             source_dir = os.path.abspath(f'modules/{module}')

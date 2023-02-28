@@ -197,7 +197,6 @@ class Interface():
         except:
             client.mkdir('modules')
             client.chdir('modules')
-        host['sftp'].listdir()
 
         client_modules = client.listdir()
         # DEPLOY

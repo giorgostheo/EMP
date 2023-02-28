@@ -70,6 +70,9 @@ class Interface():
                 return self.connections.keys()
             else:
                 return allNodes
+        groups = json.load(open('groups.json'))
+        if hostArg in groups:
+            return groups[hostArg]
         else:
             hostArg = hostArg.replace(' ','').split(',')
             if len(hostArg) > 1:
@@ -87,7 +90,7 @@ class Interface():
                     return allNodes
             else:
                 try:
-                    return [self.connections[hostArg[0]]]
+                    return [hostArg[0]]
                 except:
                     print(colored('[!]','red'), end=f'There was an error in the argument \'{hostArg[0]}\'.\n')
 

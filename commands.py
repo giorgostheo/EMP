@@ -177,6 +177,8 @@ class Interface():
         verbose = self.verbose
         # if verbose: print(f'[*] Executing command "{command}" on host {hostname}')
         hosts = self.hostname_parser(hostname)
+        if hosts is None:
+            return
 
         unavailableNodes = []
 
@@ -235,6 +237,13 @@ class Interface():
         del groups[groupname]
         with open('groups.json', 'w') as g:
             json.dump(groups, g)
+    
+    def command_show_group(self, groupname):
+        groups = json.load(open('groups.json'))
+        if groupname in groups.keys():
+            print(groups[groupname])
+        else:
+            print(f'There is no group named \'{groupname}\'.')
 
     def command_ls(self):
         '''

@@ -80,9 +80,13 @@ class Interface():
                     return allNodes
             else:
                 try:
+                    allNodes = json.load(open('hosts.json'))
+                    if hostArg[0] not in allNodes.keys():
+                        print(colored('[!]','red'),end=f' The following node does not exist: \'{hostArg}\'.\n')
+                        return
                     return [hostArg[0]]
                 except:
-                    print(colored('[!]','red'), end=f'There was an error in the argument \'{hostArg[0]}\'.\n')
+                    print(colored('[!]','red'), end=f' There was an error in the argument \'{hostArg[0]}\'.\n')
 
     def command_check(self, hostnames, verboseOverride=None):
         '''
@@ -105,6 +109,8 @@ class Interface():
 
         if hostnames != 'all':
             hostn = self.hostname_parser(hostnames)
+            if hostn is None:
+                return
             hosts = {}
             for host in hostn:
                 hosts[host] = hostJSON[host]

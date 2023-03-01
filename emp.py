@@ -84,7 +84,7 @@ while 1:
         else:
             try:
                 command = line.strip().split(' ')[0]
-                args = str(*shlex.split(line)[1:])
+                args = ' '.join(shlex.split(line)[1:])
                 exec_func(interface, command, args)
             except Exception as e: print(e)
     except Exception:

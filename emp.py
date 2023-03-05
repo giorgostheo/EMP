@@ -39,8 +39,16 @@ while 1:
             break
         else:
             try:
-                func = getattr(interface, 'command_'+line.split(' ')[0])
-                func(*shlex.split(line)[1:])
+                params = shlex.split(line)[1:]
+                nodes = interface.hostname_parser(params[0])
+                if nodes is not None:
+                    if len(nodes) > 1:
+                        getattr(interface, 'multipleNodeExecutionInterface')(nodes, 'command_'+line.split(' ')[0], *params[1:])
+                    else:
+                        getattr(interface, 'command_'+line.split(' ')[0])(*params)
+                    #func(interface.hostname_parser(params[0]), *params[1:]) #*shlex.split(line)[1:])
+            except IndexError:
+                getattr(interface, 'command_'+line.split(' ')[0])()
             except Exception as e: print(e)
     except Exception:
         print(traceback.format_exc())

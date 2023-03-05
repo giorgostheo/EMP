@@ -70,25 +70,24 @@ class Interface():
         else:
             hostArg = hostArg.replace(' ','').split(',')
             if len(hostArg) > 1:
-                self.command_check('all', False)
                 allNodes = json.load(open('hosts.json'))
                 nonExisting = [name for name in hostArg if name not in allNodes.keys()]
                 if len(nonExisting) != 0:
                     print(colored('[!]','red'),end=f' The following nodes do not exist: {nonExisting}.\n')
-                    return filter(lambda i:i not in nonExisting, hostArg)
+                    return list(filter(lambda i:i not in nonExisting, hostArg))
                 else:
                     return allNodes
             else:
                 try:
                     allNodes = json.load(open('hosts.json'))
                     if hostArg[0] not in allNodes.keys():
-                        print(colored('[!]','red'),end=f' The following node does not exist: \'{hostArg}\'.\n')
+                        print(colored('[!]','red'),end=f' The following node does not exist: \'{hostArg[0]}\'.\n')
                         return
                     return [hostArg[0]]
                 except:
                     print(colored('[!]','red'), end=f' There was an error in the argument \'{hostArg[0]}\'.\n')
 
-    def command_check(self, hostnames, verboseOverride=None):
+    def command_check(self, hostname, verboseOverride=None):
         '''
         Checks if a node or group of nodes are up. Can also be used as the starting point for any new command that targets all nodes.
         Inputs:
@@ -100,53 +99,39 @@ class Interface():
         else:
             verbose = self.verbose
 
-        if verbose: print('[+] Connecting to host(s)')
+        if verbose=='True': print('[+] Connecting to host(s)')
         
         if not self.connections:
-            hostJSON = json.load(open('hosts.json'))
+            hosts = json.load(open('hosts.json'))
         else:
-            hostJSON = self.connections
+            hosts = self.connections
 
-        if hostnames != 'all':
-            hostn = self.hostname_parser(hostnames)
-            if hostn is None:
-                return
-            hosts = {}
-            for host in hostn:
-                hosts[host] = hostJSON[host]
+        host = hosts[hostname]
+
+        if host['master_callsign']:
+            transport = hosts[host['master_callsign']]['client'].get_transport()
+            channel = transport.open_channel("direct-tcpip", (host['ip'], host['port']), (hosts[host['master_callsign']]['ip'], hosts[host['master_callsign']]['port']))
+            try:
+                host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel)
+                host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
+            except paramiko.AuthenticationException:
+                host['client'] = None
+                host['sftp'] = None
         else:
-            hosts = hostJSON
-
-        for hostname in hosts:
-            host = hosts[hostname]
-
-            if host['master_callsign']:
-                transport = hostJSON[host['master_callsign']]['client'].get_transport()
-                channel = transport.open_channel("direct-tcpip", (host['ip'], host['port']), (hostJSON[host['master_callsign']]['ip'], hostJSON[host['master_callsign']]['port']))
-                try:
-                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel)
-                    host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
-                except paramiko.AuthenticationException:
-                    host['client'] = None
-                    host['sftp'] = None
-            else:
-                try:
-                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'])
-                    host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
-                except paramiko.AuthenticationException:
-                    host['client'] = None
-                    host['sftp'] = None
+            try:
+                host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'])
+                host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
+            except paramiko.AuthenticationException:
+                host['client'] = None
+                host['sftp'] = None
 
         if verbose:
-            for hostname in hosts:
-                if hosts[hostname]['client'] is None:
-                    print(colored(hostname, 'red'), end= " ")
-                else:
-                    print(colored(hostname, 'green'), end= " ")
-            print()
+            if hosts[hostname]['client'] is None:
+                print(colored(hostname, 'red'), end= " ")
+            else:
+                print(colored(hostname, 'green'), end= " ")
 
-        if hostnames == 'all':
-            self.connections = hosts
+        self.connections = hosts
 
     def command_tty(self, hostname):
         '''
@@ -176,27 +161,17 @@ class Interface():
         '''
         verbose = self.verbose
         # if verbose: print(f'[*] Executing command "{command}" on host {hostname}')
-        hosts = self.hostname_parser(hostname)
-        if hosts is None:
-            return
 
-        unavailableNodes = []
+        host = self.connections[hostname]
+        if host['client'] is not None:
+            stdin, stdout, stderr = host['client'].exec_command(command)
+            if verbose:
+                hostn = list(self.connections.keys())[list(self.connections.values()).index(host)]
+                for line in stdout:
+                    print(colored(f"[{hostn}] "+line.strip('\n'), 'green'))
+                for line in stderr:
+                    print(colored(f"[{hostn}] "+line.strip('\n'), 'red'))
 
-        for host in hosts:
-            host = self.connections[host]
-            if host['client'] is not None:
-                stdin, stdout, stderr = host['client'].exec_command(command)
-                if verbose:
-                    hostn = list(self.connections.keys())[list(self.connections.values()).index(host)]
-                    for line in stdout:
-                        print(colored(f"[{hostn}] "+line.strip('\n'), 'green'))
-                    for line in stderr:
-                        print(colored(f"[{hostn}] "+line.strip('\n'), 'red'))
-            else:
-                unavailableNodes.append(list(self.connections.keys())[list(self.connections.values()).index(host)])
-        
-        if len(unavailableNodes) > 0:
-            print(colored('[!]', 'red'), end = f' The following nodes are not available:\n{unavailableNodes}\nThe execution of the command was not possible.\n')
 
     def command_new_group(self, nodeNames, groupName):
         '''
@@ -264,7 +239,7 @@ class Interface():
             3) run init.sh file - This needs to be present in the module directory. For python modules,
             it should create the module's environment and install requirements.
         '''
-            
+
         sftp = self.connections[hostname]['sftp']
         sftp.mkdir(f'modules', ignore_existing=True)
         sftp.mkdir(f'modules/{module}', ignore_existing=True)

@@ -47,7 +47,7 @@ class Interface():
         '''
         self.connections = connections
         self.verbose = verbose
-        self.command_check('all')
+        self.multipleNodeExecutionInterface(self.hostname_parser('all'),'command_check')
 
     def createSSHClient(self,server, port, user, password, sock=None):
         '''
@@ -59,7 +59,23 @@ class Interface():
         client.connect(server, port, user, password, sock=sock)
         return client
 
-    
+    def multipleNodeExecutionInterface(self, hostsList, command, command_params=None):
+        comm = getattr(self, f'{command}')
+
+        for host in hostsList:
+            if command_params is None:
+                comm(host)
+            else:
+                comm(host, *command_params.replace(' ','').split(','))
+                # try:
+                #     params = [host]+command_params.replace(' ','').split(',')
+                # except Exception as e:
+                #     print(e)
+                #     return
+                # comm(*params)
+        
+        if command == 'command_check': print()
+
     def hostname_parser(self, hostArg):
         if hostArg == 'all':
             return json.load(open('hosts.json'))
@@ -98,8 +114,6 @@ class Interface():
             verbose = verboseOverride
         else:
             verbose = self.verbose
-
-        if verbose=='True': print('[+] Connecting to host(s)')
         
         if not self.connections:
             hosts = json.load(open('hosts.json'))

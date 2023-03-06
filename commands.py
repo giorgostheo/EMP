@@ -185,6 +185,8 @@ class Interface():
                     print(colored(f"[{hostn}] "+line.strip('\n'), 'green'))
                 for line in stderr:
                     print(colored(f"[{hostn}] "+line.strip('\n'), 'red'))
+        else:
+            print(colored('[!]','red') ,end=f' The host {hostname} is unavailable.\n')
 
 
     def command_new_group(self, nodeNames, groupName):
@@ -255,11 +257,14 @@ class Interface():
         '''
 
         sftp = self.connections[hostname]['sftp']
-        sftp.mkdir(f'modules', ignore_existing=True)
-        sftp.mkdir(f'modules/{module}', ignore_existing=True)
-        sftp.put_dir(f'modules/{module}', f'modules/{module}')
+        if sftp is not None:
+            sftp.mkdir(f'modules', ignore_existing=True)
+            sftp.mkdir(f'modules/{module}', ignore_existing=True)
+            sftp.put_dir(f'modules/{module}', f'modules/{module}')
 
-        self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
+            self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
+        else:
+            print(colored('[!]','red') ,end=f' The host {hostname} is unavailable.\n')
 
     def command_exec_module(self, hostname, module):
         '''
@@ -291,6 +296,8 @@ class Interface():
                 # print(colored(line.strip('\n'), 'green'))
             for line in stderr:
                 print(colored(line.strip('\n'), 'red'))
+        else:
+            print(colored('[!]','red') ,end=f' The host {hostname} is unavailable.\n')
 
     def command_dask_start_master(self, hostname):
         '''OLD

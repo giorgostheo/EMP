@@ -46,6 +46,8 @@ while 1:
                         getattr(interface, 'multipleNodeExecutionInterface')(nodes, 'command_'+line.split(' ')[0], *params[1:])
                     else:
                         getattr(interface, 'command_'+line.split(' ')[0])(*params)
+                        if line.split(' ')[0] == 'check':
+                            print()
                     #func(interface.hostname_parser(params[0]), *params[1:]) #*shlex.split(line)[1:])
             except IndexError:
                 getattr(interface, 'command_'+line.split(' ')[0])()

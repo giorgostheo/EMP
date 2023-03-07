@@ -66,7 +66,7 @@ parser.add_argument("-f", nargs='?', dest='file')
 parser.add_argument("-i", nargs='?', dest='input')
 args, unknown = parser.parse_known_args()
 
-# executing commands if given as command line arguments
+# Executing commands if given as command line arguments
 FILE = args.file
 INPUT = args.input
 
@@ -84,7 +84,7 @@ while 1:
         else:
             try:
                 command = line.strip().split(' ')[0]
-                args = ' '.join(shlex.split(line)[1:])
+                args = '\s'.join(shlex.split(line)[1:])
                 exec_func(interface, command, args)
             except Exception as e: print(e)
     except Exception:

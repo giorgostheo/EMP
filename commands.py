@@ -1,4 +1,5 @@
 import json, os
+import re
 from pprint import pprint
 import paramiko
 from termcolor import colored
@@ -147,7 +148,6 @@ class Interface():
                 for line in stderr:
                     print(colored(f"[{hostname}] "+line.strip('\n'), 'red'))
 
-
     def command_ls(self):
         '''
         This lists all commands that are available (locally - this doesnt affect nodes)
@@ -168,13 +168,30 @@ class Interface():
             3) run init.sh file - This needs to be present in the module directory. For python modules,
             it should create the module's environment and install requirements.
         '''
-            
         sftp = self.connections[hostname]['sftp']
-        sftp.mkdir(f'modules', ignore_existing=True)
-        sftp.mkdir(f'modules/{module}', ignore_existing=True)
-        sftp.put_dir(f'modules/{module}', f'modules/{module}')
 
-        self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
+        sftp.mkdir('modules', ignore_existing=True)
+        sftp.mkdir(f'modules/{module}', ignore_existing=True)
+
+        should_rebuild = False
+        verbose = self.verbose
+        client = copy(sftp)
+        client.chdir('modules')
+
+        client_modules = client.listdir()
+        # Check if any changes have been made to the module
+        if module in client_modules:
+            client.chdir(module)
+            source_dir = os.path.abspath(f'modules/{module}')
+            vc = VersionControl(client, source_dir, verbose)
+            vc.compare_modules()
+            vc.update_target()
+            should_rebuild = vc.should_rebuild
+
+        if should_rebuild or module not in client_modules:
+            if verbose:
+                print('\n-Building module..')
+            self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
 
     def command_exec_module(self, hostname, module):
         '''
@@ -188,31 +205,12 @@ class Interface():
         If a module already exists, validations or actions are being performed.
         E.g update enviroment/update files
         '''
-        should_rebuild = False
         verbose = self.verbose
-        host = self.connections[hostname]
-        client = copy(host['sftp'])
-        try:
-            client.chdir('modules')
-        except:
-            client.mkdir('modules')
-            client.chdir('modules')
-
-        client_modules = client.listdir()
-        # Check if any changes have been made to the module
-        if module in client_modules:
-            client.chdir(module)
-            source_dir = os.path.abspath(f'modules/{module}')
-            vc = VersionControl(client, source_dir, verbose)
-            vc.compare_modules()
-            vc.update_target()
-            should_rebuild = vc.should_rebuild
 
         # DEPLOY
-        if should_rebuild or module not in client_modules:
-            if verbose:
-                print('\n-Deploying  module..')
-            self.command_deploy_module(hostname, module)
+        if verbose:
+            print('\n-Deploying  module..')
+        self.command_deploy_module(hostname, module)
 
         # EXEC
         if verbose:

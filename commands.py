@@ -174,17 +174,20 @@ class Interface():
         Exec a single command on a specific node.
         '''
         verbose = self.verbose
-        # if verbose: print(f'[*] Executing command "{command}" on host {hostname}')
 
         host = self.connections[hostname]
         if host['client'] is not None:
             stdin, stdout, stderr = host['client'].exec_command(command)
             if verbose:
-                hostn = list(self.connections.keys())[list(self.connections.values()).index(host)]
-                for line in stdout:
-                    print(colored(f"[{hostn}] "+line.strip('\n'), 'green'))
-                for line in stderr:
-                    print(colored(f"[{hostn}] "+line.strip('\n'), 'red'))
+                os.makedirs('logs', exist_ok=True)
+                with open(f'logs/{hostname}_last_log.txt', 'w+') as f:
+                    for line in stdout:
+                        f.write(line)
+                error = stderr.read().strip().decode("utf-8")
+                if error != '':
+                    print(colored(f'[{hostname}] ERRORS LISTED BELOW\n', 'red'))
+                    print(error)
+                    print('─' * os.get_terminal_size().columns, end='\n\n')
         else:
             print(colored('[!]','red') ,end=f' The host {hostname} is unavailable.\n')
 

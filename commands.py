@@ -5,6 +5,8 @@ from termcolor import colored
 from scp import SCPClient
 from interactive import interactive_shell
 import sys
+import threading
+import animation
 current_module = sys.modules[__name__]
 
 
@@ -47,6 +49,7 @@ class Interface():
         '''
         self.connections = connections
         self.verbose = verbose
+        self.wait_animation = animation.Wait(speed = 0.3, color='yellow')
         self.multipleNodeExecutionInterface(self.hostname_parser('all'),'command_check')
 
     def createSSHClient(self,server, port, user, password, sock=None):
@@ -61,20 +64,52 @@ class Interface():
 
     def multipleNodeExecutionInterface(self, hostsList, command, command_params=None):
         comm = getattr(self, f'{command}')
+        threads = []
 
-        for host in hostsList:
-            if command_params is None:
-                comm(host)
-            else:
-                comm(host, *command_params.replace(' ','').split(','))
-                # try:
-                #     params = [host]+command_params.replace(' ','').split(',')
-                # except Exception as e:
-                #     print(e)
-                #     return
-                # comm(*params)
+        if command == 'command_check':
+            hosts = json.load(open('hosts.json'))
+            masters = [host for host in hostsList if hosts[host]['master_callsign'] == '']
+
+            for master in masters:
+                if command_params is None:
+                    threads.append(threading.Thread(target=comm, args=(master,)))
+                else:
+                    threads.append(threading.Thread(target=comm, args=(master, *command_params.replace(' ','').split(','))))
+            
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            
+            slaves = list(set(hosts.keys()) - set(masters))
+            threads = []
+
+            for slave in slaves:
+                if command_params is None:
+                    threads.append(threading.Thread(target=comm, args=(slave,)))
+                else:
+                    threads.append(threading.Thread(target=comm, args=(slave, *command_params.replace(' ','').split(','))))
+            
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        else:
+            print(colored(f'Waiting for execution on the following nodes: ','yellow'), end=' | '.join(hostsList)+'\n')
+            self.wait_animation.start()
+            for host in hostsList:
+                if command_params is None:
+                    threads.append(threading.Thread(target=comm, args=(host,)))
+                else:
+                    threads.append(threading.Thread(target=comm, args=(host, *command_params.replace(' ','').split(','))))
+
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
         
         if command == 'command_check': print()
+        self.wait_animation.stop()
 
     def hostname_parser(self, hostArg):
         if hostArg == 'all':

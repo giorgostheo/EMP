@@ -59,7 +59,7 @@ class Interface():
         client = paramiko.SSHClient()
         client.load_system_host_keys()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(server, port, user, password, sock=sock)
+        client.connect(server, port, user, password, sock=sock, allow_agent=password=='', look_for_keys=password=='')
         return client
 
     def multipleNodeExecutionInterface(self, hostsList, command, command_params=None):
@@ -158,12 +158,12 @@ class Interface():
         host = hosts[hostname]
 
         if host['master_callsign']:
-            transport = hosts[host['master_callsign']]['client'].get_transport()
-            channel = transport.open_channel("direct-tcpip", (host['ip'], host['port']), (hosts[host['master_callsign']]['ip'], hosts[host['master_callsign']]['port']))
             try:
+                transport = hosts[host['master_callsign']]['client'].get_transport()
+                channel = transport.open_channel("direct-tcpip", (host['ip'], host['port']), (hosts[host['master_callsign']]['ip'], hosts[host['master_callsign']]['port']))
                 host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel)
                 host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
-            except paramiko.AuthenticationException:
+            except (paramiko.AuthenticationException, AttributeError):
                 host['client'] = None
                 host['sftp'] = None
         else:

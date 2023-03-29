@@ -154,7 +154,8 @@ class Interface():
         '''
         [print(com.removeprefix("command_")) for com in dir(self.__class__) if com.startswith("command")]
 
-    def command_deploy_module(self, hostname, module):
+
+    def command_sync(self, hostname, module):
         '''
         This is used to deploy a module.
         Input:
@@ -165,8 +166,6 @@ class Interface():
         What is done:
             1) Create directories ("modules" and subdir for specific module with name)
             2) Clone local module dir to remote dir with the same name
-            3) run init.sh file - This needs to be present in the module directory. For python modules,
-            it should create the module's environment and install requirements.
         '''
         sftp = self.connections[hostname]['sftp']
 
@@ -178,22 +177,23 @@ class Interface():
         client = copy(sftp)
         client.chdir('modules')
 
-        client_modules = client.listdir()
         # Check if any changes have been made to the module
-        if module in client_modules:
-            client.chdir(module)
-            source_dir = os.path.abspath(f'modules/{module}')
-            vc = VersionControl(client, source_dir, verbose)
-            vc.compare_modules()
-            vc.update_target()
-            should_rebuild = vc.should_rebuild
+        client.chdir(module)
+        source_dir = os.path.abspath(f'modules/{module}')
+        vc = VersionControl(client, source_dir, verbose)
+        vc.compare_modules()
+        vc.update_target()
+        should_rebuild = vc.should_rebuild
 
-        if should_rebuild or module not in client_modules:
-            if verbose:
-                print('\n-Building module..')
-            self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
+        return should_rebuild
 
-    def command_exec_module(self, hostname, module):
+    def command_module_deploy(self, hostname, module):
+        '''
+        Builds the given module(runs requirements file)
+        '''
+        self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
+
+    def command_module_exec(self, hostname, module):
         '''
         This runs an already deployed module (i.e. executes the run.sh file that needs to be present in the module dir)
         '''
@@ -201,21 +201,27 @@ class Interface():
 
     def command_module(self, hostname, module):
         '''
-        Responsible for deploying and executing a module.
+        Responsible for syncing, deploying and executing a module.
         If a module already exists, validations or actions are being performed.
         E.g update enviroment/update files
         '''
         verbose = self.verbose
 
-        # DEPLOY
+        # SYNC
         if verbose:
-            print('\n-Deploying  module..')
-        self.command_deploy_module(hostname, module)
+            print('\n-Syncing  module..')
+        should_build = self.command_sync(hostname, module)
+
+        # DEPLOY
+        if should_build:
+            if verbose:
+                print('\n-Building  module..')
+            self.command_module_deploy(hostname, module)
 
         # EXEC
         if verbose:
             print(f'\n-Running {module}..')
-        self.command_exec_module(hostname, module)
+        self.command_module_exec(hostname, module)
 
     def command_scan(self, hostname):
         '''OLD

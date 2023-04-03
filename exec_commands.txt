@@ -1,0 +1,3 @@
+checkall
+scan alpha
+ls

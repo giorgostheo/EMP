@@ -20,6 +20,4 @@ python emp.py
 - Add p2p VPN as a built-in module that can be deployed between multiple nodes
 - Add support for deploy over multiple nodes at the same time
 - Add complex deployments in the form of "plan" files that can replicate workflows like pipelines across multiple devices
-- Replace current data broker with websockets
-
-See issues
+- Replace current data broker with websockets or kafka

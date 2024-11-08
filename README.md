@@ -14,6 +14,12 @@ python emp.py
 - Connection object is passed to each one and returned by each one. This is bad as it should be a class...
 - ...
 
-### Todos
+### Roadmap
+
+- Port over data broker from Emeralds org and make it a built-in module
+- Add p2p VPN as a built-in module that can be deployed between multiple nodes
+- Add support for deploy over multiple nodes at the same time
+- Add complex deployments in the form of "plan" files that can replicate workflows like pipelines across multiple devices
+- Replace current data broker with websockets
 
 See issues

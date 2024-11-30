@@ -1,3 +1,1 @@
-checkall
-scan alpha
-ls
+module alpha hello_world 

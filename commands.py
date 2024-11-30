@@ -52,14 +52,14 @@ class Interface():
         self.verbose = verbose
         self.command_checkall()
 
-    def createSSHClient(self,server, port, user, password, sock=None):
+    def createSSHClient(self,server, port, user, password, sock=None, timeout=10):
         '''
         Paramiko Connector
         '''
         client = paramiko.SSHClient()
-        client.load_system_host_keys()
+        # client.load_system_host_keys()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(server, port, user, password, sock=sock)
+        client.connect(server, port, user, password=password, sock=sock, timeout=timeout, key_filename="/Users/georgetheodoropoulos/.ssh/id_rsa.pub")
         return client
 
     def command_checkall(self):
@@ -84,16 +84,20 @@ class Interface():
                 transport = hosts[host['master_callsign']]['client'].get_transport()
                 channel = transport.open_channel("direct-tcpip", (host['ip'], host['port']), (hosts[host['master_callsign']]['ip'], hosts[host['master_callsign']]['port']))
                 try:
-                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel)
+                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel, timeout=10)
                     host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
-                except paramiko.AuthenticationException:
+                except Exception as error:
+                    # handle the exception
+                    print("An exception occurred:", error)
                     host['client'] = None
                     host['sftp'] = None
             else:
                 try:
-                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'])
+                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], timeout=10)
                     host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
-                except paramiko.AuthenticationException:
+                except Exception as error:
+                    # handle the exception
+                    print("An exception occurred:", error)
                     host['client'] = None
                     host['sftp'] = None
             # except:
@@ -149,7 +153,7 @@ class Interface():
         # if verbose: print(f'[*] Executing command "{command}" on host {hostname}')
         host = self.connections[hostname]
         if host['client'] is not None:
-            stdin, stdout, stderr = host['client'].exec_command(command)
+            stdin, stdout, stderr = host['client'].exec_command(command, get_pty=True)
             if verbose: 
                 for line in stdout:
                     print(colored(f"[{hostname}] "+line.strip('\n'), 'green'))
@@ -199,7 +203,8 @@ class Interface():
         '''
         Builds the given module(runs requirements file)
         '''
-        self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
+        if 'init.sh' in os.listdir(f'modules/{module}'):
+            self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
 
     def command_module_exec(self, hostname, module):
         '''
@@ -231,76 +236,7 @@ class Interface():
             print(f'\n-Running {module}..')
         self.command_module_exec(hostname, module)
 
-    def command_scan(self, hostname):
-        '''OLD
-        Check LAN of node to see if you can find other nodes.
-        '''
-        command_string = """
-            if ! command -v nmap &> /dev/null
-            then
-                echo "Installing nmap..."
-                sudo apt install nmap
-            fi
-            nmap -n -sn 192.168.0.0/24 -oG - | awk '/Up$/{print $2}'
-        """
-        host = self.connections[hostname]
-        if host['client'] is not None:
-            stdin, stdout, stderr = host['client'].exec_command(command_string)
-            for line in [ln.strip('\n') for ln in stdout]:
-                try: 
-                    idx = [self.connections[hostname]['local_ip'] for hostname in self.connections].index(line.strip('\n'))
-                    print(colored(f"{line} - {list(self.connections.keys())[idx]}", 'green'))
-                except:
-                    print(colored(line, 'yellow'))
-                # print(colored(line.strip('\n'), 'green'))
-            for line in stderr:
-                print(colored(line.strip('\n'), 'red'))
 
-    def command_dask_start_master(self, hostname):
-        '''OLD
-        Init Dask scheduler
-        '''
-        host = self.connections[hostname]
-        command = f"""
-            echo "Initing Scheduler"
-            {host['paths']['conda']}/envs/dask/bin/dask-scheduler
-            """
-        self.command_exec(hostname, command)
-        
-    def command_dask_start_worker(self, hostname):
-        '''OLD
-        Init Dask worker
-        '''
-        host = self.connections[hostname]
-        command = f"""
-            echo "Initing Worker"
-            {host['paths']['conda']}/envs/dask/bin/dask-worker tcp://{self.connections[host['master_callsign']]['local_ip']}:8786
-            """
-        self.command_exec(hostname, command)
-
-    def command_install_conda(self, hostname):
-        '''OLD
-        Install dask
-        '''
-        host = self.connections[hostname]
-        command = f"""
-        CONDA_DIR="{host['paths']['conda']}"
-
-        # add other packages here alongside htop
-        # apt-get install -y htop
-
-        if [ ! -d $CONDA_DIR ] 
-        then
-        echo "Conda does not exist. Creating..." 
-        # change this for newer conda versions
-        wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh;
-        bash Miniconda3-latest-Linux-x86_64.sh -b
-        # if you extend this to support ymls, change the following command 
-        else
-        echo "Conda exists"
-        fi
-        """
-        self.command_exec(hostname, command)
         
 
     # ssh = createSSHClient(config['alpha']['host'], config['alpha']['port'], config['alpha']['uname'], config['alpha']['pass'])

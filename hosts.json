@@ -1,22 +1,9 @@
 {
     "alpha": {
-        "ip": "195.251.230.19",
+        "ip": "nuci71.local",
         "local_ip": "",
         "user": "gstheo",
-        "password": "1234",
-        "port": 15043,
-        "master_callsign": "",
-        "paths": {
-            "user": "/home/gstheo",
-            "conda": ""
-        }
-    },
-
-    "beta": {
-        "ip": "pi6.local",
-        "local_ip": "",
-        "user": "gstheo",
-        "password": "1234",
+        "password": "inf0l@bgst",
         "port": 22,
         "master_callsign": "",
         "paths": {
@@ -24,6 +11,7 @@
             "conda": ""
         }
     }
+
 }
 
 

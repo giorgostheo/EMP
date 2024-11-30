@@ -1,5 +1,5 @@
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action='ignore', category=DeprecationWarning)
 import os, sys
 sys.path.append(os.path.dirname(__file__))
 
@@ -19,7 +19,9 @@ import pyproj
 import geopandas as gpd
 from shapely.geometry import Point
 from shapely.ops import transform
-import torch
+# import torch
+from dateutil.parser import parse
+
 
 
 def timeit(func):
@@ -44,8 +46,14 @@ def init_df(df, oid, ts, ts_unit):
 	result = df.sort_values(by=[oid, ts])  
 	# print('Creating discrete object ids...')
 	result['oid'] = result[oid].map({v: key for key, v in enumerate(result[oid].unique().tolist())})
+	if result[ts].dtype=='O':
+		ts_series = result[ts].apply(lambda a: parse(a).timestamp())
+	elif result[ts].dtype=='int64':
+		ts_series = result[ts]
+	else:
+		raise TypeError(f"dtype '{result[ts].dtype}' is not allowed")
 	# print('Creating ts column...')
-	result['ts'] = pd.to_datetime(result[ts],unit=ts_unit)
+	result['ts'] = pd.to_datetime(ts_series,unit=ts_unit)
 	# print('Creating per object record identifiers...')
 	result['rid'] = [x for l in result.groupby('oid', group_keys=False).apply(lambda a: range(len(a))).tolist() for x in l]
 	return result
@@ -141,8 +149,7 @@ def resample_gaps(df):
 
 		# Define temp. axis and feature space
 		x = pd.to_datetime(df['ts'], unit=temporal_unit).values.astype(np.int64)
-		y = df.drop(['ts'], axis=1).values
-
+		y = df.loc[:,(df.dtypes == int) | (df.dtypes== float)].values
 		# Fetch the starting and ending timestamps of the trajectory
 		dt_start = pd.to_datetime(df['ts'].min(), unit=temporal_unit)
 		dt_end = pd.to_datetime(df['ts'].max(), unit=temporal_unit)
@@ -151,11 +158,11 @@ def resample_gaps(df):
 		xnew_V3 = pd.date_range(start=dt_start.round(rate), end=dt_end, freq=rate, inclusive='right')
 
 		# Reconstruct the new (resampled) dataframe
-		df_RESAMPLED = pd.DataFrame(f(xnew_V3), columns=[col for col in df.columns if col!='ts'])
+		df_RESAMPLED = pd.DataFrame(f(xnew_V3), columns=df.columns[(df.dtypes == int) | (df.dtypes== float)])
+		if df_RESAMPLED.empty:
+			return
 		df_RESAMPLED.loc[:, 'ts'] = xnew_V3
 		df_RESAMPLED.loc[:, 'gap_id'] = gap_id
-		if df_RESAMPLED.empty:
-			return df_RESAMPLED
 
 		df_RESAMPLED.loc[:, 'oid'] = getattr(df.iloc[0, :], 'oid')
 		df_RESAMPLED.loc[:, 'sp'] = haversine(df.iloc[0][['lat', 'lon']].values, df.iloc[1][['lat', 'lon']].values, 'nmi')/(df.ts.diff().iloc[-1].seconds/3600)
@@ -186,7 +193,7 @@ def resample_gaps(df):
 @timeit
 def trips(df):
 	'''
-	Based on gaps, detect trips and mark them with increment.
+	Based on the records where sp<1 (from TRIPS), cluster (DBSCAN) and detect stopages (places where many records with sp<1 are found)
 	'''
 	def apply_trips(traj):
 		used = False
@@ -219,6 +226,7 @@ def stopages(df):
 
 @timeit
 def compress(df, dthr):
+	# TODO: this should be done for each trip not for each oid.
 	def td_tr(gdf, dthr, lat='lat', lon='lon'):
 		'''
 		td-tr as described by Meratnia and De by
@@ -246,7 +254,6 @@ def compress(df, dthr):
 				return pd.concat([td_tr(gdf.iloc[:dists.idxmax()], dthr), td_tr(gdf.iloc[dists.idxmax():], dthr)])
 			else:
 				return gdf.iloc[[0,-1]]
-			
 
 
 	def dist_from_calced(rec, start, de, dlat, dlon, lat='lat', lon='lon'):
@@ -255,10 +262,11 @@ def compress(df, dthr):
 		# return rec.geom.distance(calced)*100 
 		return haversine(rec[['lat', 'lon']], calced)*100
 		
-	return df.groupby('oid', group_keys=False).apply(td_tr, dthr)
+	return df.groupby(['oid', 'tid'], group_keys=False).apply(td_tr, dthr)
 
 @timeit
 def cluster_trajectories(df, eps=0.01):
+	# TODO same with compress
 	dm = np.zeros((df.oid.max()+1,df.oid.max()+1))
 	for i in range(df.oid.max()+1):
 		for j in range(df.oid.max()+1):
@@ -283,8 +291,10 @@ def predict(df):
 								crs=4326)
 		gdf = gdf.to_crs(3857)
 		lastpnt = gdf.iloc[-1].copy()
-		gdf['dt_curr'] = test_trajectory.t.diff(1)[1:12].tolist()
-		gdf['dt_next'] = test_trajectory.t.diff(1)[2:13].tolist()
+		# print(test_trajectory.ts)
+		# print(test_trajectory.ts.dt.timestamp())
+		gdf['dt_curr'] = (test_trajectory.ts.astype('int64') // 10**9).diff(1)[1:12].tolist()
+		gdf['dt_next'] = (test_trajectory.ts.astype('int64') // 10**9).diff(1)[2:13].tolist()
 		gdf['dlon_curr'] = gdf.geometry.x.diff()[1:]
 		gdf['dlat_curr'] = gdf.geometry.y.diff()[1:]
 		gdf = gdf[-10:].drop(['geometry'], axis=1)
@@ -308,20 +318,21 @@ def predict(df):
 		predlon = utm_point.xy[0][0]
 		predlat = utm_point.xy[1][0]
 
+		return (predlon, predlat)
 
-		list = [np.nan for _ in range(6)] + [predlon, predlat, test_trajectory.t.iloc[-1]+3000, test_trajectory.oid.iloc[-1], test_trajectory.ts.iloc[-1] + timedelta(minutes=5)] + [np.nan for _ in range(7)]
+		# list = [np.nan for _ in range(6)] + [predlon, predlat, test_trajectory.t.iloc[-1]+3000, test_trajectory.oid.iloc[-1], test_trajectory.ts.iloc[-1] + timedelta(minutes=5)] + [np.nan for _ in range(7)]
 		
-		# using loc methods
-		traj.loc[len(traj)] = list
-		traj['pred_id'] = [0 for _ in range(len(traj)-1)] + [1]
+		# # using loc methods
+		# traj.loc[len(traj)] = list
+		# traj['pred_id'] = [0 for _ in range(len(traj)-1)] + [1]
 
-		return traj.reset_index(drop=True)
+		# return traj.reset_index(drop=True)
 
 	return df.groupby('oid', group_keys=False).apply(apply_pred)
 
 
 @timeit
-def main(input_path, oid, ts, ts_unit='s'):
+def main(input_path, oid, ts, feature, ts_unit='s'):
 	
 	df = read_csv(input_path)
 	
@@ -329,7 +340,7 @@ def main(input_path, oid, ts, ts_unit='s'):
 
 	df = drop_duplicates(df, ['oid', 'ts'])
 
-	df = drop_outliers(df, 'speedoverground', 3)
+	df = drop_outliers(df, feature, 3)
 
 	df = speed_bearing(df)
 
@@ -337,22 +348,24 @@ def main(input_path, oid, ts, ts_unit='s'):
 
 	df = trips(df)
 	
-	# stops = stopages(df)
+	stops = stopages(df)
 
-	# compressed = compress(df, 5)
+	# compressed = compress(df, 2	)
 
 	# df = cluster_trajectories(df, 0.01)
 
 	# df = predict(df)
 
+	return df, stops	
 	# return df, stops, compressed
 
 if __name__=='__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('input', metavar='FILE', help='Input file path')
-	parser.add_argument('--oid', dest='oid', required=True, metavar='COLUMN', nargs="?", help='Drops outliers on specified columns. Parses string (ex. "speed,heading")')
-	parser.add_argument('--ts', dest='ts', required=True,  metavar='COLUMN', nargs="?", help='Specify the alpha value. Refers to IQR scoring outlier detection')
+	parser.add_argument('--oid', dest='oid', required=True, metavar='COLUMN', nargs="?", help='Specify the column with the unique ID for each object')
+	parser.add_argument('--ts', dest='ts', required=True,  metavar='COLUMN', nargs="?", help='Column containing time information')
+	parser.add_argument('--feature', dest='feature', required=True,  metavar='COLUMN', nargs="?", help='Feature that will be used for outlier drop')
 	parser.add_argument('--ts-unit', dest='ts_unit',  metavar='str', nargs="?", default = 's', help='The unit of the arg (D,s,ms,us,ns) denote the unit, which is an integer or float number. Default="s"')
 	args = parser.parse_args()
 
-	main(args.input, args.oid, args.ts, args.ts_unit)
+	main(args.input, args.oid, args.ts, args.feature, args.ts_unit)

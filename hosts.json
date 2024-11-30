@@ -1,26 +1,29 @@
 {
     "alpha": {
-        "ip": "snf-33033.ok-kno.grnetcloud.net",
-        "local_ip": "192.168.0.2",
-        "user": "user",
-        "password": "u19S01HvhJ",
+        "ip": "195.251.230.19",
+        "local_ip": "",
+        "user": "gstheo",
+        "password": "1234",
+        "port": 15043,
+        "master_callsign": "",
+        "paths": {
+            "user": "/home/gstheo",
+            "conda": ""
+        }
+    },
+
+    "beta": {
+        "ip": "pi6.local",
+        "local_ip": "",
+        "user": "gstheo",
+        "password": "1234",
         "port": 22,
         "master_callsign": "",
         "paths": {
-            "user": "/home/user",
-            "conda": "/home/user/miniconda3"
-        }
-    },
-    "bravo": {
-        "ip": "snf-33044.ok-kno.grnetcloud.net",
-        "local_ip": "192.168.0.3",
-        "user": "user",
-        "password": "9zmmHQbdIz",
-        "port": 22,
-        "master_callsign": "alpha",
-        "paths": {
-            "user": "/home/user",
-            "conda": "/home/user/miniconda3"
+            "user": "/home/gstheo",
+            "conda": ""
         }
     }
 }
+
+

@@ -278,7 +278,7 @@ class Interface():
             """
         self.command_exec(hostname, command)
 
-    def command_install_conda_dask(self, hostname):
+    def command_install_conda(self, hostname):
         '''OLD
         Install dask
         '''
@@ -287,7 +287,7 @@ class Interface():
         CONDA_DIR="{host['paths']['conda']}"
 
         # add other packages here alongside htop
-        apt-get install -y htop
+        # apt-get install -y htop
 
         if [ ! -d $CONDA_DIR ] 
         then
@@ -296,8 +296,6 @@ class Interface():
         wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh;
         bash Miniconda3-latest-Linux-x86_64.sh -b
         # if you extend this to support ymls, change the following command 
-        $CONDA_DIR/bin/conda create -y -n dask python=3.9
-        $CONDA_DIR/bin/conda install -n dask -y -c conda-forge dask distributed scikit-learn scipy numpy pandas geopandas dask-geopandas
         else
         echo "Conda exists"
         fi

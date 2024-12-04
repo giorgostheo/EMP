@@ -16,6 +16,12 @@ python emp.py
 
 ### Roadmap
 
+- emp nuc run.sh should copy current dir to node "nuc" and execure run.sh
+    - current dir should be added as a module, so if the same command is execed, versioning works corrently
+- emp nodes list: list devices
+- emp modules list: show builtins
+- emp modules list nuc: show all modules @ nuc (builtins or not)
+
 - Port over data broker from Emeralds org and make it a built-in module
 - Add p2p VPN as a built-in module that can be deployed between multiple nodes
 - Add support for deploy over multiple nodes at the same time

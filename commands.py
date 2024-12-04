@@ -1,3 +1,4 @@
+import time
 import json, os
 import re
 from pprint import pprint
@@ -73,7 +74,7 @@ class Interface():
         if verbose: print('[+] Connecting to all hosts')
 
         if not self.connections:
-            hosts = json.load(open('hosts.json'))
+            hosts = json.load(open('/Users/georgetheodoropoulos/Code/EMP/hosts.json'))
         else:
             hosts = self.connections
 
@@ -84,7 +85,7 @@ class Interface():
                 transport = hosts[host['master_callsign']]['client'].get_transport()
                 channel = transport.open_channel("direct-tcpip", (host['ip'], host['port']), (hosts[host['master_callsign']]['ip'], hosts[host['master_callsign']]['port']))
                 try:
-                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel, timeout=10)
+                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel, timeout=5)
                     host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
                 except Exception as error:
                     # handle the exception
@@ -93,7 +94,7 @@ class Interface():
                     host['sftp'] = None
             else:
                 try:
-                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], timeout=10)
+                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], timeout=5)
                     host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
                 except Exception as error:
                     # handle the exception
@@ -191,7 +192,7 @@ class Interface():
 
         # Check if any changes have been made to the module
         client.chdir(module)
-        source_dir = os.path.abspath(f'modules/{module}')
+        source_dir = os.path.abspath(f'.')
         vc = VersionControl(client, source_dir, verbose)
         vc.compare_modules()
         vc.update_target()
@@ -203,7 +204,8 @@ class Interface():
         '''
         Builds the given module(runs requirements file)
         '''
-        if 'init.sh' in os.listdir(f'modules/{module}'):
+        if 'init.sh' in os.listdir(f'.'):
+            print('\n-Found init script..')
             self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
 
     def command_module_exec(self, hostname, module):
@@ -211,8 +213,24 @@ class Interface():
         This runs an already deployed module (i.e. executes the run.sh file that needs to be present in the module dir)
         '''
         self.command_exec(hostname, f'cd modules/{module}; bash run.sh')
+        # pid = int(stdout.readline())
+        # print("PID", pid)
 
-    def command_module(self, hostname, module):
+    def command_module_exec_nh(self, hostname, module):
+        '''
+        This runs an already deployed module (i.e. executes the run.sh file that needs to be present in the module dir)
+        '''
+        client = self.connections[hostname]['client']
+        transport = client.get_transport()
+        channel = transport.open_session()
+        filename = f"result_module_{module}_{int(time.time())}.txt"
+        # filename = f"res.txt"
+        channel.exec_command(f'cd modules/{module}; bash run.sh > {filename}')
+        print(f'OUTPUT FILENAME: {filename}')
+        # pid = int(stdout.readline())
+        # print("PID", pid)
+
+    def command_module(self, hostname, module, rebuild, detach):
         '''
         Responsible for syncing, deploying and executing a module.
         If a module already exists, validations or actions are being performed.
@@ -226,15 +244,20 @@ class Interface():
         should_build = self.command_sync(hostname, module)
 
         # DEPLOY
-        if should_build:
+        if should_build or rebuild:
             if verbose:
                 print('\n-Building  module..')
             self.command_module_deploy(hostname, module)
 
         # EXEC
-        if verbose:
-            print(f'\n-Running {module}..')
-        self.command_module_exec(hostname, module)
+        if detach:
+            if verbose:
+                print(f'\n-Running {module} in detached mode..')
+            self.command_module_exec_nh(hostname, module)
+        else:
+            if verbose:
+                print(f'\n-Running {module} in stdout mode..')
+            self.command_module_exec(hostname, module)
 
 
         

@@ -10,6 +10,18 @@
             "user": "/home/gstheo",
             "conda": ""
         }
+    },
+    "dgx": {
+        "ip": "dgx1.cs.unipi.gr",
+        "local_ip": "",
+        "user": "gstheo",
+        "password": "",
+        "port": 22,
+        "master_callsign": "",
+        "paths": {
+            "user": "/home/gstheo",
+            "conda": ""
+        }
     }
 
 }

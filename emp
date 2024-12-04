@@ -7,7 +7,7 @@ from scp import SCPClient
 from commands import Interface
 from utilities import parse_file, parse_args
 from _version import __version__
-
+import sys 
 art = """
   _____ __  __ ____  
  | ____|  \/  |  _ \ 
@@ -58,36 +58,49 @@ def exec_command_line_option(FILE, INPUT, unknown):
 
 print(art)
 
+DEFAULT_HOST = list(json.load(open('/Users/georgetheodoropoulos/Code/EMP/hosts.json')).keys())[0]
+
 # initializing CommandsClient object
 interface = Interface()
 input_session = PromptSession(history=FileHistory('.inp_history'))
 
 # Create the parser
 parser = argparse.ArgumentParser()
+# parser.add_argument('host', nargs='?', default='nuci71.local')
+# parser.add_argument('module', nargs='?', default=os.getcwd())
+parser.add_argument("host", nargs='?')
 parser.add_argument("-f", nargs='?', dest='file')
 parser.add_argument("-i", nargs='?', dest='input')
 args, unknown = parser.parse_known_args()
+print(args)
 
 # Executing commands if given as command line arguments
+MODULE = os.getcwd().split('/')[-1]
+HOST = args.host
 FILE = args.file
 INPUT = args.input
+RB = bool(int(os.getenv('RB', 0)))
+DT = bool(int(os.getenv('DT', 0)))
 
-exec_command_line_option(FILE, INPUT, unknown)
+print(HOST, MODULE)
+interface.command_module(HOST, MODULE, RB, DT)
 
-while 1:
-    try:
-        line = input_session.prompt(f'(v{__version__})> ', auto_suggest=AutoSuggestFromHistory())
-    except (KeyboardInterrupt, EOFError):
-        print('\nbye!')
-        break
-    try:
-        if line == 'exit':
-            break
-        else:
-            try:
-                command = line.strip().split(' ')[0]
-                args = ' '.join(shlex.split(line)[1:])
-                exec_func(interface, command, args)
-            except Exception as e: print(e)
-    except Exception:
-        print(traceback.format_exc())
+# exec_command_line_option(FILE, INPUT, unknown)
+
+# while 1:
+#     try:
+#         line = input_session.prompt(f'(v{__version__})> ', auto_suggest=AutoSuggestFromHistory())
+#     except (KeyboardInterrupt, EOFError):
+#         print('\nbye!')
+#         break
+#     try:
+#         if line == 'exit':
+#             break
+#         else:
+#             try:
+#                 command = line.strip().split(' ')[0]
+#                 args = ' '.join(shlex.split(line)[1:])
+#                 exec_func(interface, command, args)
+#             except Exception as e: print(e)
+#     except Exception:
+#         print(traceback.format_exc())

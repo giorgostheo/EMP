@@ -8,7 +8,10 @@ from scp import SCPClient
 from interactive import interactive_shell
 from utilities import VersionControl
 import sys
+import threading
+from threading import Lock
 from copy import copy
+import time
 current_module = sys.modules[__name__]
 
 
@@ -45,13 +48,27 @@ class Interface():
                     raise
 
 
-    def __init__(self, connections={}, verbose=True):
+    def __init__(self, host='', connections={}, verbose=True):
         '''
         Initialize parameters, execute init commands
         '''
         self.connections = connections
         self.verbose = verbose
-        self.command_checkall()
+        self.command_checkall(host)
+
+    def parse_hostname(self, hostname):
+        hosts = json.load(open('/Users/georgetheodoropoulos/Code/emeralds/EMP/hosts.json'))
+
+        if hostname in hosts.keys():
+            return {hostname:hosts[hostname]}
+        else:
+            group = [name for name in hosts.keys() if name.startswith(hostname)]
+            print(group)
+            if group:
+                return {name:hosts[name] for name in group}
+            else:
+                return hosts
+
 
     def createSSHClient(self,server, port, user, password, sock=None, timeout=10):
         '''
@@ -62,8 +79,132 @@ class Interface():
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         client.connect(server, port, user, password=password, sock=sock, timeout=timeout, key_filename="/Users/georgetheodoropoulos/.ssh/id_rsa.pub")
         return client
+    
+    def command_checkall(self, host, verbose=False):
+        """
+        Establish SSH connections to all hosts in parallel, respecting dependencies.
+        """
+        verbose = self.verbose
 
-    def command_checkall(self):
+        hosts = self.parse_hostname(host)
+
+        if verbose: 
+            print(f'[+] Connecting to {hosts.keys()}')
+
+        lock = Lock()
+        threads = []
+
+        # Initialize threading.Event for each host
+        for hostname in hosts:
+            hosts[hostname]['event'] = threading.Event()
+
+        # Start a thread for each host
+        for hostname in hosts:
+            thread = threading.Thread(
+                target=self.connect_host,
+                args=(hostname, hosts, lock)
+            )
+            threads.append(thread)
+            thread.start()
+
+        # Wait for all threads to finish
+        for thread in threads:
+            thread.join()
+
+        # After all threads are done, set the connections
+        self.connections = hosts
+
+        # Print connection status if verbose
+        # if verbose:
+        #     for hostname in hosts:
+        #         host = hosts[hostname]
+        #         if host['client'] is None:
+        #             print(colored(hostname, 'red'), end=" ")
+        #         else:
+        #             print(colored(hostname, 'green'), end=" ")
+        #     print()
+
+    def connect_host(self, hostname, hosts_dict, lock):
+        """
+        Threaded function to connect a single host.
+        """
+        host = hosts_dict[hostname]
+        event = host['event']
+
+        try:
+            # If this host depends on a master, wait for it to connect first
+            if host.get('master_callsign'):
+                master_callsign = host['master_callsign']
+                master_host = hosts_dict[master_callsign]
+                master_event = master_host['event']
+
+                # Wait for master to finish connecting
+                master_event.wait(timeout=15)  # Wait up to 10 seconds
+
+                # Check if the master client is available
+                with lock:
+                    if master_host.get('client') is None:
+                        # Master failed, so this host can't connect
+                        host['client'] = None
+                        host['sftp'] = None
+                        event.set()
+                        return
+
+                    # Use the master's transport to connect to this host
+                    transport = master_host['client'].get_transport()
+                    channel = transport.open_channel(
+                        "direct-tcpip",
+                        (host['ip'], host['port']),
+                        (master_host['ip'], master_host['port'])
+                    )
+
+                    # Create SSH client through the channel
+                    client = self.createSSHClient(
+                        host['ip'], host['port'],
+                        host['user'], host['password'],
+                        sock=channel,
+                        timeout=5
+                    )
+
+
+
+            else:
+                # Direct connection
+                client = self.createSSHClient(
+                    host['ip'], host['port'],
+                    host['user'], host['password'],
+                    timeout=5
+                )
+
+            # Create SFTP client
+            sftp = self.MySFTPClient.from_transport(client.get_transport())
+
+            stdin, stdout, stderr = client.exec_command('tmux ls')
+            stderr = stderr.readlines()
+            print(stderr)
+
+            if stderr and stderr[0].startswith('no server running'):
+                print(colored(f"[{hostname}] Available, Free", 'green'))
+            else:
+                jobs = [val.split(':')[0] for val in stdout.readlines()]
+                print(colored(f"[{hostname}] Available, Busy running: {jobs}", 'yellow'))
+            # Save to hosts dictionary (with lock)
+            with lock:
+                host['client'] = client
+                host['sftp'] = sftp
+
+        except Exception as error:
+            # Log error or handle it
+            with lock:
+                host['client'] = None
+                host['sftp'] = None
+                print(colored(f"[{hostname}] Unavailable due to error {error}", 'red'))
+
+        finally:
+            # Signal this host thread is done
+            event.set()
+
+    def command_checkall_old(self, host):
         '''
         Checks if all nodes are up. Can also be used as the starting point for any new command that targets all nodes.
         TODO: Create a single interface that runs smth in all nodes.
@@ -71,12 +212,19 @@ class Interface():
         '''
         verbose = self.verbose
 
-        if verbose: print('[+] Connecting to all hosts')
+        if verbose: 
+            if host=='':
+                print('[+] Connecting to all hosts')
+            else:
+                print(f'[+] Connecting to {host}')
 
         if not self.connections:
-            hosts = json.load(open('/Users/georgetheodoropoulos/Code/EMP/hosts.json'))
+            hosts = json.load(open('/Users/georgetheodoropoulos/Code/emeralds/EMP/hosts.json'))
         else:
             hosts = self.connections
+
+        if host!='':
+            hosts = {host:hosts[host]}
 
         for hostname in hosts:
             host = hosts[hostname]
@@ -145,6 +293,31 @@ class Interface():
         if verbose: print(f'[*] Executing command "{command}" on all hosts')
         for hostname in self.connections:
             self.command_exec(hostname, command)
+    
+    def command_monitorall(self):
+        '''
+        Same as exec, but for all nodes
+        '''
+        verbose = self.verbose
+        if verbose: print(f'[*] Executing command "tmux ls" on all hosts')
+        for hostname in self.connections:
+            host = self.connections[hostname]
+            if host['client'] is not None:
+                stdin, stdout, stderr = host['client'].exec_command('tmux ls')
+                stderr = stderr.readlines()
+
+                if stderr and stderr[0].startswith('no server running'):
+                    print(colored(f"[{hostname}] No tmux server running", 'green'))
+                else:
+                    jobs = [val.split(':')[0] for val in stdout.readlines()]
+                    print(colored(f"[{hostname}] Busy running: {jobs}", 'yellow'))
+                # print(stdout.readlines())
+                # print(stderr.readlines())
+                # if verbose: 
+                #     for line in stdout:
+                #         print(colored(f"[{hostname}] "+line.strip('\n'), 'green'))
+                #     for line in stderr:
+                #         print(colored(f"[{hostname}] "+line.strip('\n'), 'red'))
 
     def command_exec(self, hostname, command):
         '''
@@ -213,6 +386,12 @@ class Interface():
         This runs an already deployed module (i.e. executes the run.sh file that needs to be present in the module dir)
         '''
         self.command_exec(hostname, f'cd modules/{module}; bash run.sh')
+
+    def command_module_exec_tmux(self, hostname, module):
+        '''
+        This runs an already deployed module (i.e. executes the run.sh file that needs to be present in the module dir)
+        '''
+        self.command_exec(hostname, f'tmux new-session -d -s _emp_{module}_{int(time.time())} "cd modules/{module}; bash run.sh"')
         # pid = int(stdout.readline())
         # print("PID", pid)
 
@@ -223,14 +402,13 @@ class Interface():
         client = self.connections[hostname]['client']
         transport = client.get_transport()
         channel = transport.open_session()
-        filename = f"result_module_{module}_{int(time.time())}.txt"
         # filename = f"res.txt"
-        channel.exec_command(f'cd modules/{module}; bash run.sh > {filename}')
-        print(f'OUTPUT FILENAME: {filename}')
-        # pid = int(stdout.readline())
+        log_file = f'modules/{module}/logfile'
+        channel.exec_command(f'cd modules/{module}; touch mylock_$$; bash run.sh > /dev/null 2>&1; rm mylock_$$\n') # WORKS
+        # pid = int(stdout.readline()) modules/{module}/{filename}
         # print("PID", pid)
 
-    def command_module(self, hostname, module, rebuild, detach):
+    def command_module_old(self, hostname, module, rebuild, detach):
         '''
         Responsible for syncing, deploying and executing a module.
         If a module already exists, validations or actions are being performed.
@@ -257,8 +435,40 @@ class Interface():
         else:
             if verbose:
                 print(f'\n-Running {module} in stdout mode..')
-            self.command_module_exec(hostname, module)
+            self.command_module_exec_tmux(hostname, module)
 
+    def command_module(self, module, rebuild, detach):
+        '''
+        Responsible for syncing, deploying and executing a module.
+        If a module already exists, validations or actions are being performed.
+        E.g update enviroment/update files
+        '''
+        # print(self.connections)
+        for hostname in self.connections:
+            self.command_module_old(hostname, module, rebuild, detach)
+
+    def command_module_par(self, module, rebuild, detach):
+        '''
+        Responsible for syncing, deploying and executing a module.
+        If a module already exists, validations or actions are being performed.
+        E.g update enviroment/update files
+        '''
+        verbose = self.verbose
+
+        threads = []
+
+        # Start a thread for each host
+        for hostname in self.connections:
+            thread = threading.Thread(
+                target=self.command_module_old,
+                args=(hostname, module, rebuild, detach)
+            )
+            threads.append(thread)
+            thread.start()
+
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join()
 
         
 

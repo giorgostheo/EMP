@@ -1,5 +1,11 @@
 .DS_Store
 .inp_history
+hosts.json
+data/
+modules/**/*image.json
+
+modules/**/*.json
+modules/docker_hello/.docker_hello_commit_image.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

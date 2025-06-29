@@ -1,4 +1,30 @@
-#!/opt/homebrew/Caskroom/miniforge/base/envs/dask/bin/python3.9
+#!/usr/bin/env python3
+"""
+EMP (Emerald Management Platform) is a command-line tool for managing and executing tasks
+across multiple hosts. It provides an interface to define, synchronize, deploy, and execute
+modules on remote servers.
+
+This script:
+1. Initializes the interface with host connections
+2. Parses command line arguments for execution
+3. Provides an interactive prompt for running commands (currently disabled)
+4. Handles module deployment and execution across hosts
+
+Usage:
+python emp [<host>] [-f <file>] [-i <input>]
+
+Example:
+python emp myhost.local -f commands.txt
+python emp -i "deploy --force"
+
+Functions:
+- exec_func: Executes a command on the interface with given arguments
+- exec_command_line_option: Processes and executes commands from CLI args
+
+Environment Variables:
+- RB (int): Rebuild flag (0 or 1)
+- DT (int): Detached execution flag (0 or 1)
+"""
 
 import json
 from pprint import pprint
@@ -7,13 +33,15 @@ from scp import SCPClient
 from commands import Interface
 from utilities import parse_file, parse_args
 from _version import __version__
+import sys
 
+# ASCII art banner for the EMP tool
 art = """
-  _____ __  __ ____  
- | ____|  \/  |  _ \ 
+  _____ __  __ ____
+ | ____|  \/  |  _ \
  |  _| | |\/| | |_) |
- | |___| |  | |  __/ 
- |_____|_|  |_|_|    v0.1                      
+ | |___| |  | |  __/
+ |_____|_|  |_|_|    v2025.2.1
 """
 
 from prompt_toolkit import PromptSession
@@ -24,70 +52,106 @@ import argparse
 import traceback
 from termcolor import colored
 import shlex
-import sys
 import os
 
-
 def exec_func(interface, command, args):
-    '''
-    Executes a function of the Interface, given some attributes
-    '''
-    func = getattr(interface, 'command_'+command)
-    if interface.verbose:
-        print(f'\nExecuting {command}')
-    func(*shlex.shlex(args))
+    """
+    Executes a function of the Interface class based on the given command and arguments.
 
+    Args:
+        interface: An instance of the Interface class
+        command: The command to execute (will be prefixed with 'command_')
+        args: Arguments to pass to the command function
 
-def exec_command_line_option(FILE, INPUT, unknown):
-    '''
-    Executes commands given as command line arguments
-    '''
-    if any([FILE, INPUT, unknown]):
-        if not unknown:
+    This function uses Python's getattr to dynamically call the appropriate method
+    on the interface object based on the command name.
+
+    Returns:
+        The result of the executed function (if any)
+    """
+    try:
+        func = getattr(interface, 'command_' + command)
+        if interface.verbose:
+            print(f'\nExecuting {command}')
+        # Convert args string into a list using shlex and pass it to the function
+        return func(*shlex.shlex(args))
+    except AttributeError as e:
+        print(f"Error: Command '{command}' not found in interface")
+        raise e
+
+def exec_command_line_option(file_path=None, input_str=None, unknown_args=None):
+    """
+    Executes commands provided via command line arguments.
+
+    This function handles three types of inputs:
+    - File containing commands (specified with -f)
+    - Direct string input (specified with -i)
+    - Unknown arguments (invalid command)
+
+    Args:
+        file_path: Path to a file containing commands
+        input_str: String of commands to execute
+        unknown_args: List of unknown/unsupported arguments
+
+    If any valid input is provided, it will parse and execute the commands.
+    Invalid arguments will be reported and the program will exit.
+
+    This function:
+    1. Checks for inputs from file or direct string
+    2. Parses commands using appropriate parser functions
+    3. Executes each command through exec_func()
+    4. Handles exceptions and reports errors
+    """
+    if any([file_path, input_str, unknown_args]):
+        if not unknown_args:
             try:
-                actions = parse_file(FILE) if FILE else parse_args(INPUT)
+                # Parse commands from file or string
+                actions = parse_file(file_path) if file_path else parse_args(input_str)
                 for action in actions:
                     command, args = action
                     exec_func(interface, command, args)
             except Exception as e:
-                print(e)
+                print(f"Error executing commands: {e}")
         else:
-            print(f'Argument "{unknown[0]}" does not exist')
+            print(f'Argument "{unknown_args[0]}" does not exist')
         sys.exit()
-
 
 print(art)
 
-# initializing CommandsClient object
-interface = Interface()
+# Initialize the prompt session with history persistence
 input_session = PromptSession(history=FileHistory('.inp_history'))
 
-# Create the parser
-parser = argparse.ArgumentParser()
-parser.add_argument("-f", nargs='?', dest='file')
-parser.add_argument("-i", nargs='?', dest='input')
+# Set up command line argument parser
+parser = argparse.ArgumentParser(description="EMP - Emerald Management Platform")
+parser.add_argument("host", nargs='?', default='', help="Host to connect to")
+parser.add_argument("-f", nargs='?', dest='file', help="File containing commands to execute")
+parser.add_argument("-i", nargs='?', dest='input', help="Direct command input string")
 args, unknown = parser.parse_known_args()
+# Debug output of parsed arguments
+print(args)
 
-# Executing commands if given as command line arguments
-FILE = args.file
-INPUT = args.input
+# Extract and process command line arguments
+module_name = os.path.basename(os.getcwd())  # Get the current module name from directory
+host = args.host
+file_path = args.file
+input_str = args.input
 
-exec_command_line_option(FILE, INPUT, unknown)
+# Read environment variables for rebuild/detach options
+rebuild_flag = bool(int(os.getenv('RB', 0)))  # Rebuild flag
+detached_mode = bool(int(os.getenv('DT', 0)))  # Detached execution flag
 
-while 1:
-    try:
-        line = input_session.prompt(f'(v{__version__})> ', auto_suggest=AutoSuggestFromHistory())
-    except (KeyboardInterrupt, EOFError):
-        print('\nbye!')
-        break
-    try:
-        if line == 'exit':
-            break
-        else:
-            try:
-                command = line.strip().split(' ')[0]
-                args = ' '.join(shlex.split(line)[1:])
-                exec_func(interface, command, args)
-            except Exception as e: print(e)
-    except Exception:
-        print(traceback.format_exc())
+# Initialize the interface with host connections
+interface = Interface(host)
+
+# If a specific host is provided, execute monitor commands on it
+if host:
+    # Uncomment appropriate line based on desired behavior
+    # interface.command_module(host, module_name, rebuild_flag, detached_mode)
+    # interface.command_module_par(module_name, rebuild_flag, detached_mode)
+    interface.command_monitorall()
+
+print(f"Connected to host: {host}")
+
+# Execute commands from file or direct input if provided
+exec_command_line_option(file_path, input_str, unknown)
+

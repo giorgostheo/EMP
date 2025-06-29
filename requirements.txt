@@ -1,0 +1,8 @@
+paramiko
+termcolor
+scp
+prompt-toolkit
+gnureadline
+argparse
+# shlex
+# pkg-resources

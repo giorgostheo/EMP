@@ -1,6 +1,7 @@
-#!/usr/bin/env python3
+#!/opt/homebrew/Caskroom/miniforge/base/envs/dask/bin/python3.9
+
 """
-EMP (Emerald Management Platform) is a command-line tool for managing and executing tasks
+EMP (Edge Management Platform) is a command-line tool for managing and executing tasks
 across multiple hosts. It provides an interface to define, synchronize, deploy, and execute
 modules on remote servers.
 
@@ -37,12 +38,13 @@ import sys
 
 # ASCII art banner for the EMP tool
 art = """
-  _____ __  __ ____
- | ____|  \/  |  _ \
+  _____ __  __ ____  
+ | ____|  \/  |  _ \ 
  |  _| | |\/| | |_) |
- | |___| |  | |  __/
- |_____|_|  |_|_|    v2025.2.1
+ | |___| |  | |  __/ 
+ |_____|_|  |_|_|    v2025.3.1                      
 """
+
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
@@ -121,37 +123,93 @@ print(art)
 # Initialize the prompt session with history persistence
 input_session = PromptSession(history=FileHistory('.inp_history'))
 
-# Set up command line argument parser
-parser = argparse.ArgumentParser(description="EMP - Emerald Management Platform")
-parser.add_argument("host", nargs='?', default='', help="Host to connect to")
+# Set up command line argument parser with subparsers for commands
+parser = argparse.ArgumentParser(description="EMP - Edge Management Platform",
+                                 epilog="Use 'emp --help' or 'emp <command> --help' for more information on a specific command.")
+
+# Add help/version arguments to the main parser
+parser.add_argument("-v", "--verbose", action="store_true",
+                    help="Enable verbose mode")
+parser.add_argument("--version", action="version",
+                    version=f"EMP v{__version__}")
+
+# Create subparsers for different commands
+subparsers = parser.add_subparsers(dest='command', help='Available commands')
+
+# Deploy command
+deploy_parser = subparsers.add_parser('deploy', help="Deploy a directory as a module")
+deploy_parser.add_argument('host', help="Host to deploy module on")
+deploy_parser.add_argument('directory', nargs='?', help="Directory to deploy")
+
+# Command execution
+cmd_parser = subparsers.add_parser('command', help="Execute a command on a specific host")
+cmd_parser.add_argument('host', help="Host to execute command on")
+cmd_parser.add_argument('cmd_text', help="Command to execute")
+
+# TTY command
+tty_parser = subparsers.add_parser('tty', help="Open an interactive TTY session with a host")
+tty_parser.add_argument('host', help="Host to connect to")
+
+# Check command
+check_parser = subparsers.add_parser('check', help="Check module status on a specific host")
+
+# Add optional arguments for file and direct input
 parser.add_argument("-f", nargs='?', dest='file', help="File containing commands to execute")
 parser.add_argument("-i", nargs='?', dest='input', help="Direct command input string")
+
+
+# Parse arguments
 args, unknown = parser.parse_known_args()
-# Debug output of parsed arguments
-print(args)
+
+# Display help message if no command is provided or --help is used
+if not args.command and (unknown and '--help' in unknown) or not args.command:
+    print("\nEMP - Edge Management Platform\n")
+    print("Usage: python emp [command] [options]\n")
+    print("Available commands:")
+    parser.print_help()
+    sys.exit()
 
 # Extract and process command line arguments
 module_name = os.path.basename(os.getcwd())  # Get the current module name from directory
-host = args.host
-file_path = args.file
-input_str = args.input
 
 # Read environment variables for rebuild/detach options
 rebuild_flag = bool(int(os.getenv('RB', 0)))  # Rebuild flag
 detached_mode = bool(int(os.getenv('DT', 0)))  # Detached execution flag
 
 # Initialize the interface with host connections
+host = args.host if 'host' in args else ''
 interface = Interface(host)
 
-# If a specific host is provided, execute monitor commands on it
-if host:
-    # Uncomment appropriate line based on desired behavior
-    # interface.command_module(host, module_name, rebuild_flag, detached_mode)
-    # interface.command_module_par(module_name, rebuild_flag, detached_mode)
-    interface.command_monitorall()
+# Handle different commands based on parsing results
+command = args.command if 'command' in args else ''
+file_path = args.file
+input_str = args.input
 
-print(f"Connected to host: {host}")
+if command == 'deploy':
+    if not args.directory:
+        print("Usage: python emp deploy [<directory>]")
+    else:
+        directory = args.directory
+        interface.command_module_par(args.directory, rebuild_flag, detached_mode)
 
-# Execute commands from file or direct input if provided
-exec_command_line_option(file_path, input_str, unknown)
+elif command == 'command':
+    try:
+        cmd_text = args.cmd_text
+        interface.command_exec(host, cmd_text)
+    except AttributeError:
+        print("Usage: python emp command [<host>] [<command>]")
+
+elif command == 'tty':
+    try:
+        interface.command_tty(host)
+    except AttributeError:
+        print("Usage: python emp tty [<host>]")
+
+elif command == 'check':
+    try:
+        pass
+        # interface.command_monitorall()
+    except AttributeError:
+        print("Usage: python emp check [<host>]")
+
 

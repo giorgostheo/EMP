@@ -293,7 +293,7 @@ class Interface():
         if verbose: print(f'[*] Executing command "{command}" on all hosts')
         for hostname in self.connections:
             self.command_exec(hostname, command)
-    
+
     def command_monitorall(self):
         '''
         Same as exec, but for all nodes
@@ -431,11 +431,11 @@ class Interface():
         if detach:
             if verbose:
                 print(f'\n-Running {module} in detached mode..')
-            self.command_module_exec_nh(hostname, module)
+            self.command_module_exec_tmux(hostname, module)
         else:
             if verbose:
                 print(f'\n-Running {module} in stdout mode..')
-            self.command_module_exec_tmux(hostname, module)
+            self.command_module_exec(hostname, module)
 
     def command_module(self, module, rebuild, detach):
         '''

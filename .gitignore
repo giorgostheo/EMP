@@ -1,6 +1,6 @@
 .DS_Store
 .inp_history
-hosts.json
+*.json
 data/
 modules/**/*image.json
 

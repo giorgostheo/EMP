@@ -104,3 +104,10 @@ Edit the following files to configure EMP:
 This project is under active development. Contributions are welcome!
 
 ### TODO:
+
+- Add the following arguments to reflect different functionalities:
+    - `python emp deploy [<host>] [<directory>]` should deploy the given directory as a module.
+    - `python emp command [<host>] [<command>]` should execute a command on a specific module.
+    - `python emp tty [<host>]` should open an interactive TTY session with a specific host.
+    - `python emp check [<host>]` should verify the status of a specific module through the checkall command. 
+    - `python emp` and `python emp --help` should output a help message 

@@ -60,7 +60,11 @@ class Interface():
         hosts = json.load(open('/Users/georgetheodoropoulos/Code/emeralds/EMP/hosts.json'))
 
         if hostname in hosts.keys():
-            return {hostname:hosts[hostname]}
+            if hosts[hostname]['master_callsign']:
+                return {hosts[hostname]['master_callsign']:hosts[hosts[hostname]['master_callsign']], 
+                        hostname:hosts[hostname]}
+            else:
+                return {hostname:hosts[hostname]}
         else:
             group = [name for name in hosts.keys() if name.startswith(hostname)]
             print(group)
@@ -149,7 +153,7 @@ class Interface():
                         host['sftp'] = None
                         event.set()
                         return
-
+                    print('hi')
                     # Use the master's transport to connect to this host
                     transport = master_host['client'].get_transport()
                     channel = transport.open_channel(
@@ -157,6 +161,7 @@ class Interface():
                         (host['ip'], host['port']),
                         (master_host['ip'], master_host['port'])
                     )
+                    print('hi1')
 
                     # Create SSH client through the channel
                     client = self.createSSHClient(
@@ -183,8 +188,11 @@ class Interface():
             stderr = stderr.readlines()
             print(stderr)
 
-            if stderr and stderr[0].startswith('no server running'):
-                print(colored(f"[{hostname}] Available, Free", 'green'))
+            if stderr: 
+                if stderr[0].startswith('no server running'):
+                    print(colored(f"[{hostname}] Available, Free", 'green'))
+                elif 'command not found' in stderr[0]:
+                    print(colored(f"[{hostname}] Available: tmux not installed", 'yellow'))
             else:
                 jobs = [val.split(':')[0] for val in stdout.readlines()]
                 print(colored(f"[{hostname}] Available, Busy running: {jobs}", 'yellow'))
@@ -306,8 +314,11 @@ class Interface():
                 stdin, stdout, stderr = host['client'].exec_command('tmux ls')
                 stderr = stderr.readlines()
 
-                if stderr and stderr[0].startswith('no server running'):
-                    print(colored(f"[{hostname}] No tmux server running", 'green'))
+                if stderr:
+                    if stderr[0].startswith('no server running'):
+                        print(colored(f"[{hostname}] No tmux server running", 'green'))
+                    elif 'command not found' in stderr[0]:
+                        print(colored(f"[{hostname}] tmux not installed", 'red'))
                 else:
                     jobs = [val.split(':')[0] for val in stdout.readlines()]
                     print(colored(f"[{hostname}] Busy running: {jobs}", 'yellow'))
@@ -365,7 +376,8 @@ class Interface():
 
         # Check if any changes have been made to the module
         client.chdir(module)
-        source_dir = os.path.abspath(f'.')
+        source_dir = os.path.abspath(module)
+        print('sd->', source_dir, module)
         vc = VersionControl(client, source_dir, verbose)
         vc.compare_modules()
         vc.update_target()

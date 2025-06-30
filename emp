@@ -189,7 +189,9 @@ if command == 'deploy':
     if not args.directory:
         print("Usage: python emp deploy [<directory>]")
     else:
-        directory = args.directory
+        directory = os.path.abspath(args.directory) # Get the directory name from path')
+        print(directory)
+
         interface.command_module_par(args.directory, rebuild_flag, detached_mode)
 
 elif command == 'command':

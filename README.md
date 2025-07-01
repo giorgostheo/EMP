@@ -34,12 +34,6 @@ python emp.py
 
 ### Available Commands
 
-Use the `ls` command to list all available commands:
-
-```Shell
-emp ls
-```
-
 Main features include:
 - Module management: deploy, update, and run modules on remote devices
 - Node management: connect to and manage multiple remote hosts
@@ -47,31 +41,39 @@ Main features include:
 
 ### Example Usage
 
-1. List available commands:
+1. Display help message with available commands:
 
-   ```Shell
-   emp ls
-   ```
+    ```bash
+    python emp --help
+    ```
 
-2. Connect to a specific node:
+2. Execute a command on a specific host:
 
-   ```Shell
-   emp checkall pi4
-   ```
+    ```bash
+    python emp command alpha "ls -la"
+    ```
 
-3. Deploy a module to all connected nodes:
+3. Deploy a module to all connected hosts (specify directory):
 
-   ```Shell
-   emp module hello_world false true
-   ```
+    ```bash
+    python emp deploy my_module ./path/to/module_directory
+    ```
 
 ### Roadmap
 
-- Improve command structure by creating a unified interface for executing commands on all nodes
-- Add support for module version tracking and rollbacks
-- Implement secure password handling instead of plaintext in hosts.json
-- Add more robust error handling and recovery mechanisms
-- Create a web-based UI for managing nodes and modules
+Completed:
+- Module deployment to remote hosts
+- Command execution on specific or all hosts
+- TTY access for interactive terminal sessions
+- Status checking via checkall command
+- Help system implementation
+
+Remaining:
+- Improve command structure with unified interface for node operations
+- Add module version tracking and rollback functionality
+- Implement secure password handling (replace plaintext in hosts.json)
+- Enhance error handling and recovery mechanisms
+- Develop web-based UI for managing nodes and modules
 
 ## Module Structure
 
@@ -103,11 +105,10 @@ Edit the following files to configure EMP:
 
 This project is under active development. Contributions are welcome!
 
-### TODO:
+## Implemented Features
 
-- Add the following arguments to reflect different functionalities:
-    - `python emp deploy [<host>] [<directory>]` should deploy the given directory as a module.
-    - `python emp command [<host>] [<command>]` should execute a command on a specific module.
-    - `python emp tty [<host>]` should open an interactive TTY session with a specific host.
-    - `python emp check [<host>]` should verify the status of a specific module through the checkall command. 
-    - `python emp` and `python emp --help` should output a help message 
+- Module deployment: Deploy directories as modules to remote hosts
+- Command execution: Execute commands on specific hosts or all connected nodes
+- TTY access: Open interactive terminal sessions with remote hosts
+- Status checking: Verify module status through checkall command
+- Help system: Display help messages with `emp` and `emp --help`

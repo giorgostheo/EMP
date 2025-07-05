@@ -50,13 +50,13 @@ Main features include:
 2. Execute a command on a specific host:
 
     ```bash
-    python emp command alpha "ls -la"
+    python emp command HOSTNAME "ls -la"
     ```
 
 3. Deploy a module to all connected hosts (specify directory):
 
     ```bash
-    python emp deploy my_module ./path/to/module_directory
+    python emp deploy HOSTNAME ./path/to/module_directory
     ```
 
 ### Roadmap

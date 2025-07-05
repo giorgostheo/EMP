@@ -11,7 +11,12 @@ import sys
 import threading
 from threading import Lock
 from copy import copy
-import time
+
+# Import logging configuration
+import log_utils
+import logging
+
+logger = logging.getLogger(__name__)
 current_module = sys.modules[__name__]
 
 
@@ -67,10 +72,13 @@ class Interface():
                 return {hostname:hosts[hostname]}
         else:
             group = [name for name in hosts.keys() if name.startswith(hostname)]
-            print(group)
+            logger.debug(f"Hostname groups starting with {hostname}: {group}")
             if group:
-                return {name:hosts[name] for name in group}
+                result = {name:hosts[name] for name in group}
+                logger.debug(f"Found host group: {result}")
+                return result
             else:
+                logger.warning("No matching hosts found")
                 return hosts
 
 

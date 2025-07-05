@@ -31,6 +31,22 @@ python emp.py
 - Version control for module updates
 - Parallel execution of commands across multiple nodes
 - Interactive shell access to remote hosts
+- Configurable logging verbosity
+
+### Logging Configuration
+
+EMP uses the `V` environment variable to control logging levels:
+
+```bash
+# Show only errors (default behavior)
+V=0 python emp myhost.local -f commands.txt
+
+# Show INFO, WARNING, ERROR, CRITICAL messages
+V=1 python emp myhost.local -f commands.txt
+
+# Show all logs including DEBUG information
+V=2 python emp myhost.local -f commands.txt
+```
 
 ### Available Commands
 
@@ -39,7 +55,7 @@ Main features include:
 - Node management: connect to and manage multiple remote hosts
 - Task automation: execute shell commands across connected nodes
 
-### Example Usage
+#### Example Usage
 
 1. Display help message with available commands:
 
@@ -59,21 +75,19 @@ Main features include:
     python emp deploy HOSTNAME ./path/to/module_directory
     ```
 
-### Roadmap
+## Configuration
 
-Completed:
-- Module deployment to remote hosts
-- Command execution on specific or all hosts
-- TTY access for interactive terminal sessions
-- Status checking via checkall command
-- Help system implementation
+Edit the following files to configure EMP:
 
-Remaining:
-- Improve command structure with unified interface for node operations
-- Add module version tracking and rollback functionality
-- Implement secure password handling (replace plaintext in hosts.json)
-- Enhance error handling and recovery mechanisms
-- Develop web-based UI for managing nodes and modules
+- `hosts.json`: Define remote hosts and their connection details
+- `requirements.txt`: List Python dependencies for the CLI tool
+- `setup.py`: Configure package settings
+
+## Environment Variables
+
+- V (int): Logging verbosity level (0=ERROR, 1=INFO, 2=DEBUG)
+- RB (int): Rebuild flag (0 or 1)
+- DT (int): Detached execution flag (0 or 1)
 
 ## Module Structure
 
@@ -92,14 +106,6 @@ modules/
     ├── requirements.txt
     └── run.sh
 ```
-
-## Configuration
-
-Edit the following files to configure EMP:
-
-- `hosts.json`: Define remote hosts and their connection details
-- `requirements.txt`: List Python dependencies for the CLI tool
-- `setup.py`: Configure package settings
 
 ## Development
 

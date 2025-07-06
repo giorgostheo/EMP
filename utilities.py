@@ -11,7 +11,7 @@ import hashlib
 from stat import S_ISDIR
 from termcolor import colored
 from numpy import unique
-import datetime
+from datetime import datetime
 import os
 
 # Import logging configuration
@@ -19,6 +19,32 @@ import log_utils
 import logging
 
 logger = logging.getLogger(__name__)
+
+def time_str():
+    """
+    Returns the current timestamp formatted as hh:mm:ss.ms
+    """
+    return datetime.now().strftime('%H:%M:%S.%f')[:-3]
+
+def scribe(msg, hostname=None, color=None):
+    """
+    Returns the current timestamp formatted as hh:mm:ss.ms
+    """
+    vl = int(os.getenv('V', '0'))
+
+    if hostname is None:
+        if color is None:
+            if vl>0:
+                print(f"[{time_str()}] | {msg}")
+        else:
+            print(colored(f"[{time_str()}] | {msg}", color))
+    else:
+        if color is None:
+            if vl>0:
+                print(f"[{time_str()}] | [{hostname}] {msg}")
+        else:
+            print(colored(f"[{time_str()}] | [{hostname}] {msg}", color))
+
 
 
 def parse_args(target: list) -> list:
@@ -189,9 +215,9 @@ class VersionControl:
                 logger.info(f"\t- {change_str}")  # Using colored for user output
 
             if self.DELETED:
-                logger.warning("DELETED FILES:")
+                logger.info("DELETED FILES:")
             for file in self.DELETED:
-                logger.warning(f"\t- {file}")  # Using colored for user output
+                logger.info(f"\t- {file}")  # Using colored for user output
         else:
             logger.info("No changes detected")
 
@@ -262,7 +288,7 @@ class VersionControl:
             current_commit.pop(image_file_index)
 
         # Format commit for json
-        _datetime = datetime.datetime.now()
+        _datetime = datetime.now()
         commits_image.update({
             id: {
                 'commit_date': _datetime,
@@ -348,6 +374,7 @@ class VersionControl:
         # Whats left on target is considered deleted, as it no longer
         # exists on source
         self.DELETED = list(target_dict.keys())
+        self._print_changes()
 
     def update_target(self, requirements="requirements.txt"):
         """

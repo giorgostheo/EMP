@@ -19,7 +19,7 @@
 import json
 import socket
 import sys
-from paramiko.py3compat import u
+# from paramiko.py3compat import u
 import paramiko
 
 def createSSHClient(server, port, user, password):
@@ -59,7 +59,7 @@ def posix_shell(chan):
             r, w, e = select.select([chan, sys.stdin], [], [])
             if chan in r:
                 try:
-                    x = u(chan.recv(1024))
+                    x = chan.recv(1024).decode('utf-8')
                     if len(x) == 0:
                         sys.stdout.write("\r\n*** EOF\r\n")
                         break

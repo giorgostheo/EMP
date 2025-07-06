@@ -32,20 +32,12 @@ def get_log_level_from_env():
         # Get V from environment, default to 0 if not set or invalid
         v = int(os.getenv('V', '0'))
 
-        # Clamp values outside of 0-2 range
-        if v < 0:
-            v = 0
-            logging.error("Invalid V value (<0), defaulting to ERROR level")
-        elif v > 2:
-            v = 2
-            logging.error("Invalid V value (>2), defaulting to DEBUG level")
-
         # Map V to logging levels
-        if v == 0:
+        if v <= 1:
             return logging.ERROR
-        elif v == 1:
+        elif v == 2:
             return logging.INFO
-        else:  # v == 2
+        elif v > 2:  # v == 2
             return logging.DEBUG
 
     except ValueError:

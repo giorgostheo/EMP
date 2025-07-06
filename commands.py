@@ -1,12 +1,11 @@
 import time
 import json, os
 import re
-from pprint import pprint
 import paramiko
 from termcolor import colored
 from scp import SCPClient
 from interactive import interactive_shell
-from utilities import VersionControl
+from utilities import VersionControl, time_str, scribe
 import sys
 import threading
 from threading import Lock
@@ -72,10 +71,10 @@ class Interface():
                 return {hostname:hosts[hostname]}
         else:
             group = [name for name in hosts.keys() if name.startswith(hostname)]
-            logger.debug(f"Hostname groups starting with {hostname}: {group}")
+            logger.debug(f"[{time_str()}] | Hostname groups starting with {hostname}: {group}")
             if group:
                 result = {name:hosts[name] for name in group}
-                logger.debug(f"Found host group: {result}")
+                logger.debug(f"[{time_str()}] | Found host group: {result}")
                 return result
             else:
                 logger.warning("No matching hosts found")
@@ -100,8 +99,7 @@ class Interface():
 
         hosts = self.parse_hostname(host)
 
-        if verbose: 
-            print(f'[+] Connecting to {hosts.keys()}')
+        scribe(f'Connecting to {list(hosts.keys())}')
 
         lock = Lock()
         threads = []
@@ -126,15 +124,15 @@ class Interface():
         # After all threads are done, set the connections
         self.connections = hosts
 
-        # Print connection status if verbose
+        # scribe connection status if verbose
         # if verbose:
         #     for hostname in hosts:
         #         host = hosts[hostname]
         #         if host['client'] is None:
-        #             print(colored(hostname, 'red'), end=" ")
+        #             scribe(colored(hostname, 'red'), end=" ")
         #         else:
-        #             print(colored(hostname, 'green'), end=" ")
-        #     print()
+        #             scribe(colored(hostname, 'green'), end=" ")
+        #     scribe()
 
     def connect_host(self, hostname, hosts_dict, lock):
         """
@@ -142,10 +140,10 @@ class Interface():
         """
         host = hosts_dict[hostname]
         event = host['event']
-
         try:
             # If this host depends on a master, wait for it to connect first
             if host.get('master_callsign'):
+                scribe("Connecting using nested SSH...", hostname=hostname)
                 master_callsign = host['master_callsign']
                 master_host = hosts_dict[master_callsign]
                 master_event = master_host['event']
@@ -161,7 +159,6 @@ class Interface():
                         host['sftp'] = None
                         event.set()
                         return
-                    print('hi')
                     # Use the master's transport to connect to this host
                     transport = master_host['client'].get_transport()
                     channel = transport.open_channel(
@@ -169,7 +166,6 @@ class Interface():
                         (host['ip'], host['port']),
                         (master_host['ip'], master_host['port'])
                     )
-                    print('hi1')
 
                     # Create SSH client through the channel
                     client = self.createSSHClient(
@@ -178,32 +174,33 @@ class Interface():
                         sock=channel,
                         timeout=5
                     )
-
-
-
             else:
+                scribe("Connecting directly...", hostname=hostname)
                 # Direct connection
                 client = self.createSSHClient(
                     host['ip'], host['port'],
                     host['user'], host['password'],
-                    timeout=5
+                    timeout=10
                 )
 
             # Create SFTP client
             sftp = self.MySFTPClient.from_transport(client.get_transport())
-
+            scribe("Checking TMUX...", hostname=hostname)
             stdin, stdout, stderr = client.exec_command('tmux ls')
             stderr = stderr.readlines()
-            print(stderr)
-
+            scribe(f"TMUX stderr: {stderr}", hostname=hostname)
             if stderr: 
                 if stderr[0].startswith('no server running'):
-                    print(colored(f"[{hostname}] Available, Free", 'green'))
+                    scribe("Available, Free", hostname=hostname, color='green')
                 elif 'command not found' in stderr[0]:
-                    print(colored(f"[{hostname}] Available: tmux not installed", 'yellow'))
+                    scribe("Available: tmux not installed", hostname=hostname, color='yellow')
             else:
-                jobs = [val.split(':')[0] for val in stdout.readlines()]
-                print(colored(f"[{hostname}] Available, Busy running: {jobs}", 'yellow'))
+                jobs = [val.split(':')[0] for val in stdout.readlines() if val.startswith('_emp')]
+                if jobs:
+                    scribe(f"Available, Busy running: {jobs}", hostname=hostname, color='yellow')
+                else:
+                    scribe("Available, Free", hostname=hostname, color='green')
+
             # Save to hosts dictionary (with lock)
             with lock:
                 host['client'] = client
@@ -214,70 +211,11 @@ class Interface():
             with lock:
                 host['client'] = None
                 host['sftp'] = None
-                print(colored(f"[{hostname}] Unavailable due to error {error}", 'red'))
+                scribe(f"Unavailable due to error {error}", hostname=hostname, color='red')
 
         finally:
             # Signal this host thread is done
             event.set()
-
-    def command_checkall_old(self, host):
-        '''
-        Checks if all nodes are up. Can also be used as the starting point for any new command that targets all nodes.
-        TODO: Create a single interface that runs smth in all nodes.
-        Ex. Instead of checkall, runall etc. create one func that take a command as input (check, run etc.) and runs on all nodes.
-        '''
-        verbose = self.verbose
-
-        if verbose: 
-            if host=='':
-                print('[+] Connecting to all hosts')
-            else:
-                print(f'[+] Connecting to {host}')
-
-        if not self.connections:
-            hosts = json.load(open('/Users/georgetheodoropoulos/Code/emeralds/EMP/hosts.json'))
-        else:
-            hosts = self.connections
-
-        if host!='':
-            hosts = {host:hosts[host]}
-
-        for hostname in hosts:
-            host = hosts[hostname]
-            # try:
-            if host['master_callsign']:
-                transport = hosts[host['master_callsign']]['client'].get_transport()
-                channel = transport.open_channel("direct-tcpip", (host['ip'], host['port']), (hosts[host['master_callsign']]['ip'], hosts[host['master_callsign']]['port']))
-                try:
-                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], sock=channel, timeout=5)
-                    host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
-                except Exception as error:
-                    # handle the exception
-                    print("An exception occurred:", error)
-                    host['client'] = None
-                    host['sftp'] = None
-            else:
-                try:
-                    host['client'] = self.createSSHClient(host['ip'], host['port'], host['user'], host['password'], timeout=5)
-                    host['sftp'] = self.MySFTPClient.from_transport(host['client'].get_transport())
-                except Exception as error:
-                    # handle the exception
-                    print("An exception occurred:", error)
-                    host['client'] = None
-                    host['sftp'] = None
-            # except:
-            #     host['client'] = None
-            #     host['scp'] = None
-                # print(f'Could not connect to {host["name"]}')
-        if verbose:
-            for hostname in hosts:
-                if hosts[hostname]['client'] is None:
-                    print(colored(hostname, 'red'), end= " ")
-                else:
-                    print(colored(hostname, 'green'), end= " ")
-            print()
-        
-        self.connections = hosts
 
     def command_tty(self, hostname):
         '''
@@ -290,23 +228,12 @@ class Interface():
             raise Exception(f'Host "{hostname}" is unreachable')
         interactive_shell(chan)
 
-    def command_verbose(self):
-        '''
-        Changes global verbosity
-        '''
-        if self.verbose:
-            print('Verbose mode off')
-            self.verbose = False
-        else:
-            print('Verbose mode on')
-            self.verbose = True
-
     def command_execall(self, command):
         '''
         Same as exec, but for all nodes
         '''
         verbose = self.verbose
-        if verbose: print(f'[*] Executing command "{command}" on all hosts')
+        if verbose: scribe(f'[*] Executing command "{command}" on all hosts')
         for hostname in self.connections:
             self.command_exec(hostname, command)
 
@@ -315,7 +242,7 @@ class Interface():
         Same as exec, but for all nodes
         '''
         verbose = self.verbose
-        if verbose: print(f'[*] Executing command "tmux ls" on all hosts')
+        if verbose: scribe(f'[*] Executing command "tmux ls" on all hosts')
         for hostname in self.connections:
             host = self.connections[hostname]
             if host['client'] is not None:
@@ -324,40 +251,40 @@ class Interface():
 
                 if stderr:
                     if stderr[0].startswith('no server running'):
-                        print(colored(f"[{hostname}] No tmux server running", 'green'))
+                        scribe("No tmux server running", hostname=hostname, color='green')
                     elif 'command not found' in stderr[0]:
-                        print(colored(f"[{hostname}] tmux not installed", 'red'))
+                        scribe("tmux not installed", hostname=hostname, color='red')
                 else:
                     jobs = [val.split(':')[0] for val in stdout.readlines()]
-                    print(colored(f"[{hostname}] Busy running: {jobs}", 'yellow'))
-                # print(stdout.readlines())
-                # print(stderr.readlines())
+                    scribe("Busy running: {jobs}", hostname=hostname, color='yellow')
+                # scribe(stdout.readlines())
+                # scribe(stderr.readlines())
                 # if verbose: 
                 #     for line in stdout:
-                #         print(colored(f"[{hostname}] "+line.strip('\n'), 'green'))
+                #         scribe(""+line.strip('\n'), hostname=hostname, color='green')
                 #     for line in stderr:
-                #         print(colored(f"[{hostname}] "+line.strip('\n'), 'red'))
+                #         scribe(""+line.strip('\n'), hostname=hostname, color='red')
 
     def command_exec(self, hostname, command):
         '''
         Exec a single command on a specific node.
         '''
         verbose = self.verbose
-        # if verbose: print(f'[*] Executing command "{command}" on host {hostname}')
+        # if verbose: scribe(f'[*] Executing command "{command}" on host {hostname}')
         host = self.connections[hostname]
         if host['client'] is not None:
             stdin, stdout, stderr = host['client'].exec_command(command, get_pty=True)
             if verbose: 
                 for line in stdout:
-                    print(colored(f"[{hostname}] "+line.strip('\n'), 'green'))
+                    scribe(""+line.strip('\n'), hostname=hostname, color='green')
                 for line in stderr:
-                    print(colored(f"[{hostname}] "+line.strip('\n'), 'red'))
+                    scribe(""+line.strip('\n'), hostname=hostname, color='red')
 
     def command_ls(self):
         '''
         This lists all commands that are available (locally - this doesnt affect nodes)
         '''
-        [print(com.removeprefix("command_")) for com in dir(self.__class__) if com.startswith("command")]
+        [scribe(com.removeprefix("command_")) for com in dir(self.__class__) if com.startswith("command")]
 
 
     def command_sync(self, hostname, module):
@@ -385,7 +312,6 @@ class Interface():
         # Check if any changes have been made to the module
         client.chdir(module)
         source_dir = os.path.abspath(module)
-        print('sd->', source_dir, module)
         vc = VersionControl(client, source_dir, verbose)
         vc.compare_modules()
         vc.update_target()
@@ -398,7 +324,7 @@ class Interface():
         Builds the given module(runs requirements file)
         '''
         if 'init.sh' in os.listdir(f'.'):
-            print('\n-Found init script..')
+            scribe('\n-Found init script..')
             self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
 
     def command_module_exec(self, hostname, module):
@@ -413,20 +339,20 @@ class Interface():
         '''
         self.command_exec(hostname, f'tmux new-session -d -s _emp_{module}_{int(time.time())} "cd modules/{module}; bash run.sh"')
         # pid = int(stdout.readline())
-        # print("PID", pid)
+        # scribe("PID", pid)
 
     def command_module_exec_nh(self, hostname, module):
         '''
         This runs an already deployed module (i.e. executes the run.sh file that needs to be present in the module dir)
         '''
         client = self.connections[hostname]['client']
-        transport = client.get_transport()
+        transport = client.get_transport(algorithm='aes256-ctr')
         channel = transport.open_session()
-        # filename = f"res.txt"
+        # filename = f"[{time_str()}] | res.txt"
         log_file = f'modules/{module}/logfile'
         channel.exec_command(f'cd modules/{module}; touch mylock_$$; bash run.sh > /dev/null 2>&1; rm mylock_$$\n') # WORKS
         # pid = int(stdout.readline()) modules/{module}/{filename}
-        # print("PID", pid)
+        # scribe("PID", pid)
 
     def command_module_old(self, hostname, module, rebuild, detach):
         '''
@@ -438,23 +364,23 @@ class Interface():
 
         # SYNC
         if verbose:
-            print('\n-Syncing  module..')
+            scribe('\n-Syncing  module..')
         should_build = self.command_sync(hostname, module)
 
         # DEPLOY
         if should_build or rebuild:
             if verbose:
-                print('\n-Building  module..')
+                scribe('\n-Building  module..')
             self.command_module_deploy(hostname, module)
 
         # EXEC
         if detach:
             if verbose:
-                print(f'\n-Running {module} in detached mode..')
+                scribe(f'\n-Running {module} in detached mode..')
             self.command_module_exec_tmux(hostname, module)
         else:
             if verbose:
-                print(f'\n-Running {module} in stdout mode..')
+                scribe(f'\n-Running {module} in stdout mode..')
             self.command_module_exec(hostname, module)
 
     def command_module(self, module, rebuild, detach):
@@ -463,7 +389,7 @@ class Interface():
         If a module already exists, validations or actions are being performed.
         E.g update enviroment/update files
         '''
-        # print(self.connections)
+        # scribe(self.connections)
         for hostname in self.connections:
             self.command_module_old(hostname, module, rebuild, detach)
 
@@ -494,12 +420,12 @@ class Interface():
 
     # ssh = createSSHClient(config['alpha']['host'], config['alpha']['port'], config['alpha']['uname'], config['alpha']['pass'])
     # scp = SCPClient(ssh.get_transport())
-    # scp.put('script.sh', f"{config['alpha']['paths']['user']}/config.json")
+    # scp.put('script.sh', f"[{time_str()}] | {config['alpha']['paths']['user']}/config.json")
     # stdin, stdout, stderr = ssh.exec_command('sudo -S bash script.sh',  get_pty=True)
     # stdin.write(config['alpha']['pass'] + "\n")
     # # stdin, stdout, stderr = ssh.exec_command('ls')
     # stdin.flush()
 
-    # print(stdout.read())
-    # print(stderr.read())
+    # scribe(stdout.read())
+    # scribe(stderr.read())
 

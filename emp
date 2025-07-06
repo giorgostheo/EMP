@@ -1,4 +1,4 @@
-#!/opt/homebrew/Caskroom/miniforge/base/envs/dask/bin/python3.9
+#!/opt/homebrew/Caskroom/miniforge/base/envs/emp312/bin/python3.12
 
 """
 EMP (Edge Management Platform) is a command-line tool for managing and executing tasks
@@ -42,16 +42,6 @@ import log_utils
 import logging
 
 logger = logging.getLogger(__name__)
-
-# ASCII art banner for the EMP tool
-art = """
-  _____ __  __ ____
- | ____|  \/  |  _ \
- |  _| | |\/| | |_) |
- | |___| |  | |  __/
- |_____|_|  |_|_|    v2025.3.1
-
-"""
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
@@ -125,8 +115,6 @@ def exec_command_line_option(file_path=None, input_str=None, unknown_args=None):
             print(f'Argument "{unknown_args[0]}" does not exist')
         sys.exit()
 
-print(art)
-
 # Initialize the prompt session with history persistence
 input_session = PromptSession(history=FileHistory('.inp_history'))
 
@@ -197,7 +185,6 @@ if command == 'deploy':
         print("Usage: python emp deploy [<directory>]")
     else:
         directory = os.path.abspath(args.directory) # Get the directory name from path')
-        print(directory)
 
         interface.command_module_par(args.directory, rebuild_flag, detached_mode)
 

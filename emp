@@ -191,7 +191,7 @@ if command == 'deploy':
 elif command == 'command':
     try:
         cmd_text = args.cmd_text
-        interface.command_exec(host, cmd_text)
+        interface.command_exec(cmd_text)
     except AttributeError:
         print("Usage: python emp command [<host>] [<command>]")
 

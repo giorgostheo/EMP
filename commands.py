@@ -266,15 +266,14 @@ class Interface():
                 #     for line in stderr:
                 #         scribe(""+line.strip('\n'), hostname=hostname, color='red')
 
-    def command_exec(self, hostname, command):
+    def command_exec(self, command):
         '''
         Exec a single command on a specific node.
         '''
         verbose = self.verbose
         # if verbose: scribe(f'[*] Executing command "{command}" on host {hostname}')
-        host = self.connections[hostname]
-        if host['client'] is not None:
-            stdin, stdout, stderr = host['client'].exec_command(command, get_pty=True)
+        for hostname in self.connections:
+            stdin, stdout, stderr = self.connections[hostname]['client'].exec_command(command, get_pty=True)
             if verbose: 
                 for line in stdout:
                     scribe(""+line.strip('\n'), hostname=hostname, color='green')

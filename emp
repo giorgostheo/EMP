@@ -48,11 +48,6 @@ tty_parser.add_argument('host', help="Host to connect to")
 # Check command
 check_parser = subparsers.add_parser('check', help="Check module status on a specific host")
 
-# Add optional arguments for file and direct input
-parser.add_argument("-f", nargs='?', dest='file', help="File containing commands to execute")
-parser.add_argument("-i", nargs='?', dest='input', help="Direct command input string")
-
-
 # Parse arguments
 args, unknown = parser.parse_known_args()
 

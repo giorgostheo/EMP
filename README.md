@@ -127,6 +127,13 @@ python emp tty HOSTNAME
 
 The project is currently in version 0.1 and is actively being developed. Contributions and feedback are welcome!
 
+## Todos
+
+ - Implement sanity checks for modules (make sure that they have a run.sh file for example).
+ - Refactor complex parts of the codebase like the large function that checks all nodes.
+ - Implement tests somehow...
+ - Make changes and additions to publish to PyPy and make pip installable.
+
 ### License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

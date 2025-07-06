@@ -71,8 +71,6 @@ interface = Interface(host)
 
 # Handle different commands based on parsing results
 command = args.command if 'command' in args else ''
-file_path = args.file
-input_str = args.input
 
 if command == 'attached':
     if not args.directory:

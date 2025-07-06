@@ -211,7 +211,8 @@ class Interface():
             with lock:
                 host['client'] = None
                 host['sftp'] = None
-                scribe(f"Unavailable due to error {error}", hostname=hostname, color='red')
+                scribe(f"Unavailable", hostname=hostname, color='red')
+                scribe(f"Unavailable due to error {error}", hostname=hostname)
 
         finally:
             # Signal this host thread is done

@@ -1,11 +1,50 @@
+"""
+Utilities module for EMP command-line tool.
+
+This module provides functions and classes to support the main application,
+including argument parsing, file processing, and version control.
+"""
+
+import json
 from pathlib import Path
 import hashlib
 from stat import S_ISDIR
 from termcolor import colored
 from numpy import unique
-import datetime
-import json
+from datetime import datetime
 import os
+
+# Import logging configuration
+import log_utils
+import logging
+
+logger = logging.getLogger(__name__)
+
+def time_str():
+    """
+    Returns the current timestamp formatted as hh:mm:ss.ms
+    """
+    return datetime.now().strftime('%H:%M:%S.%f')[:-3]
+
+def scribe(msg, hostname=None, color=None):
+    """
+    Returns the current timestamp formatted as hh:mm:ss.ms
+    """
+    vl = int(os.getenv('V', '0'))
+
+    if hostname is None:
+        if color is None:
+            if vl>0:
+                print(f"[{time_str()}] | {msg}")
+        else:
+            print(colored(f"[{time_str()}] | {msg}", color))
+    else:
+        if color is None:
+            if vl>0:
+                print(f"[{time_str()}] | [{hostname}] {msg}")
+        else:
+            print(colored(f"[{time_str()}] | [{hostname}] {msg}", color))
+
 
 
 def parse_args(target: list) -> list:
@@ -160,27 +199,27 @@ class VersionControl:
         Prints the changes found in the source versus the target module
         """
         if any([self.NEW, self.UPDATED, self.MOVED, self.RENAMED, self.DELETED]):
-            print("Changes deployed in module:")
+            logger.info("Changes deployed in module:")
 
             new_updated = self.NEW + self.UPDATED
             if new_updated:
-                print("NEW/UPDATED FILES:")
+                logger.info("NEW/UPDATED FILES:")
             for file in self.NEW + self.UPDATED:
-                print(colored(f"\t- {file}", "green"))
+                logger.info(f"\t- {file}")  # Using colored for user output
 
             moved_renamed = self.MOVED + self.RENAMED
             if moved_renamed:
-                print("MOVED/RENAMED FILES:")
+                logger.info("MOVED/RENAMED FILES:")
             for file in moved_renamed:
                 change_str = "{} -> {}".format(file["target"], file["source"])
-                print(colored(f"\t- {change_str}", "yellow"))
+                logger.info(f"\t- {change_str}")  # Using colored for user output
 
             if self.DELETED:
-                print("DELETED FILES:")
+                logger.info("DELETED FILES:")
             for file in self.DELETED:
-                print(colored(f"\t- {file}", "red"))
+                logger.info(f"\t- {file}")  # Using colored for user output
         else:
-            print("No changes detected")
+            logger.info("No changes detected")
 
     def _mkdir(self, dir):
         '''
@@ -249,7 +288,7 @@ class VersionControl:
             current_commit.pop(image_file_index)
 
         # Format commit for json
-        _datetime = datetime.datetime.now()
+        _datetime = datetime.now()
         commits_image.update({
             id: {
                 'commit_date': _datetime,
@@ -284,7 +323,7 @@ class VersionControl:
         commit_image_json_dir = self.commit_image_json_dir
         
         if verbose:
-            print("Checking for changes in module..")
+            logger.debug("Checking for changes in module..")
 
         # Parse last commit image
         self._parse_commit_image()
@@ -335,6 +374,7 @@ class VersionControl:
         # Whats left on target is considered deleted, as it no longer
         # exists on source
         self.DELETED = list(target_dict.keys())
+        self._print_changes()
 
     def update_target(self, requirements="requirements.txt"):
         """

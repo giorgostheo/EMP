@@ -1,9 +1,5 @@
 paramiko
 termcolor
 scp
-prompt-toolkit
-gnureadline
 argparse
-numpy 
-# shlex
-# pkg-resources
+numpy

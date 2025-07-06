@@ -95,7 +95,6 @@ class Interface():
         """
         Establish SSH connections to all hosts in parallel, respecting dependencies.
         """
-        verbose = self.verbose
 
         hosts = self.parse_hostname(host)
 
@@ -229,62 +228,24 @@ class Interface():
             raise Exception(f'Host "{hostname}" is unreachable')
         interactive_shell(chan)
 
-    def command_execall(self, command):
-        '''
-        Same as exec, but for all nodes
-        '''
-        verbose = self.verbose
-        if verbose: scribe(f'[*] Executing command "{command}" on all hosts')
-        for hostname in self.connections:
-            self.command_exec(hostname, command)
-
-    def command_monitorall(self):
-        '''
-        Same as exec, but for all nodes
-        '''
-        verbose = self.verbose
-        if verbose: scribe(f'[*] Executing command "tmux ls" on all hosts')
-        for hostname in self.connections:
-            host = self.connections[hostname]
-            if host['client'] is not None:
-                stdin, stdout, stderr = host['client'].exec_command('tmux ls')
-                stderr = stderr.readlines()
-
-                if stderr:
-                    if stderr[0].startswith('no server running'):
-                        scribe("No tmux server running", hostname=hostname, color='green')
-                    elif 'command not found' in stderr[0]:
-                        scribe("tmux not installed", hostname=hostname, color='red')
-                else:
-                    jobs = [val.split(':')[0] for val in stdout.readlines()]
-                    scribe("Busy running: {jobs}", hostname=hostname, color='yellow')
-                # scribe(stdout.readlines())
-                # scribe(stderr.readlines())
-                # if verbose: 
-                #     for line in stdout:
-                #         scribe(""+line.strip('\n'), hostname=hostname, color='green')
-                #     for line in stderr:
-                #         scribe(""+line.strip('\n'), hostname=hostname, color='red')
-
     def command_exec(self, command):
         '''
         Exec a single command on a specific node.
         '''
-        verbose = self.verbose
-        # if verbose: scribe(f'[*] Executing command "{command}" on host {hostname}')
         for hostname in self.connections:
-            stdin, stdout, stderr = self.connections[hostname]['client'].exec_command(command, get_pty=True)
-            if verbose: 
-                for line in stdout:
-                    scribe(""+line.strip('\n'), hostname=hostname, color='green')
-                for line in stderr:
-                    scribe(""+line.strip('\n'), hostname=hostname, color='red')
+            self._command_exec_single(hostname, command)
 
-    def command_ls(self):
+    def _command_exec_single(self, hostname, command):
         '''
-        This lists all commands that are available (locally - this doesnt affect nodes)
+        Exec a single command on a specific node.
         '''
-        [scribe(com.removeprefix("command_")) for com in dir(self.__class__) if com.startswith("command")]
+        # if verbose: scribe(f'[*] Executing command "{command}" on host {hostname}')
+
+        stdin, stdout, stderr = self.connections[hostname]['client'].exec_command(command, get_pty=True)
+        for line in stdout:
+            scribe(""+line.strip('\n'), hostname=hostname, color='green')
+        for line in stderr:
+            scribe(""+line.strip('\n'), hostname=hostname, color='red')
 
 
     def command_sync(self, hostname, module):
@@ -305,7 +266,6 @@ class Interface():
         sftp.mkdir(f'modules/{module}', ignore_existing=True)
 
         should_rebuild = False
-        verbose = self.verbose
         client = copy(sftp)
         client.chdir('modules')
 
@@ -331,7 +291,7 @@ class Interface():
         '''
         This runs an already deployed module (i.e. executes the run.sh file that needs to be present in the module dir)
         '''
-        self.command_exec(hostname, f'cd modules/{module}; bash run.sh')
+        self._command_exec_single(hostname, f'cd modules/{module}; bash run.sh')
 
     def command_module_exec_tmux(self, hostname, module):
         '''
@@ -341,57 +301,28 @@ class Interface():
         # pid = int(stdout.readline())
         # scribe("PID", pid)
 
-    def command_module_exec_nh(self, hostname, module):
-        '''
-        This runs an already deployed module (i.e. executes the run.sh file that needs to be present in the module dir)
-        '''
-        client = self.connections[hostname]['client']
-        transport = client.get_transport(algorithm='aes256-ctr')
-        channel = transport.open_session()
-        # filename = f"[{time_str()}] | res.txt"
-        log_file = f'modules/{module}/logfile'
-        channel.exec_command(f'cd modules/{module}; touch mylock_$$; bash run.sh > /dev/null 2>&1; rm mylock_$$\n') # WORKS
-        # pid = int(stdout.readline()) modules/{module}/{filename}
-        # scribe("PID", pid)
-
-    def command_module_old(self, hostname, module, rebuild, detach):
+    def _command_module(self, hostname, module, rebuild, detach):
         '''
         Responsible for syncing, deploying and executing a module.
         If a module already exists, validations or actions are being performed.
         E.g update enviroment/update files
         '''
-        verbose = self.verbose
-
         # SYNC
-        if verbose:
-            scribe('\n-Syncing  module..')
+        scribe('\n-Syncing  module..')
         should_build = self.command_sync(hostname, module)
 
         # DEPLOY
         if should_build or rebuild:
-            if verbose:
-                scribe('\n-Building  module..')
+            scribe('\n-Building  module..')
             self.command_module_deploy(hostname, module)
 
         # EXEC
         if detach:
-            if verbose:
-                scribe(f'\n-Running {module} in detached mode..')
+            scribe(f'\n-Running {module} in detached mode..')
             self.command_module_exec_tmux(hostname, module)
         else:
-            if verbose:
-                scribe(f'\n-Running {module} in stdout mode..')
+            scribe(f'\n-Running {module} in stdout mode..')
             self.command_module_exec(hostname, module)
-
-    def command_module(self, module, rebuild, detach):
-        '''
-        Responsible for syncing, deploying and executing a module.
-        If a module already exists, validations or actions are being performed.
-        E.g update enviroment/update files
-        '''
-        # scribe(self.connections)
-        for hostname in self.connections:
-            self.command_module_old(hostname, module, rebuild, detach)
 
     def command_module_par(self, module, rebuild, detach):
         '''
@@ -399,14 +330,13 @@ class Interface():
         If a module already exists, validations or actions are being performed.
         E.g update enviroment/update files
         '''
-        verbose = self.verbose
 
         threads = []
 
         # Start a thread for each host
         for hostname in self.connections:
             thread = threading.Thread(
-                target=self.command_module_old,
+                target=self._command_module,
                 args=(hostname, module, rebuild, detach)
             )
             threads.append(thread)
@@ -415,7 +345,6 @@ class Interface():
         # Wait for all threads to complete
         for thread in threads:
             thread.join()
-
         
 
     # ssh = createSSHClient(config['alpha']['host'], config['alpha']['port'], config['alpha']['uname'], config['alpha']['pass'])

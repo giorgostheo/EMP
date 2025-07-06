@@ -1,122 +1,17 @@
 #!/opt/homebrew/Caskroom/miniforge/base/envs/emp312/bin/python3.12
-
-"""
-EMP (Edge Management Platform) is a command-line tool for managing and executing tasks
-across multiple hosts. It provides an interface to define, synchronize, deploy, and execute
-modules on remote servers.
-
-This script:
-1. Initializes the interface with host connections
-2. Parses command line arguments for execution
-3. Provides an interactive prompt for running commands (currently disabled)
-4. Handles module deployment and execution across hosts
-
-Usage:
-python emp [<host>] [-f <file>] [-i <input>]
-
-Example:
-python emp myhost.local -f commands.txt
-python emp -i "deploy --force"
-
-Functions:
-- exec_func: Executes a command on the interface with given arguments
-- exec_command_line_option: Processes and executes commands from CLI args
-
-Environment Variables:
-- V (int): Logging verbosity level (0=ERROR, 1=INFO, 2=DEBUG)
-- RB (int): Rebuild flag (0 or 1)
-- DT (int): Detached execution flag (0 or 1)
-"""
-
-import json
-from pprint import pprint
-import paramiko
-from scp import SCPClient
-from commands import Interface
-from utilities import parse_file, parse_args
 from _version import __version__
+from commands import Interface
 import sys
 
 # Import logging configuration
-import log_utils
 import logging
 
 logger = logging.getLogger(__name__)
 
-from prompt_toolkit import PromptSession
-from prompt_toolkit.history import FileHistory
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-import readline
 import argparse
-import traceback
-from termcolor import colored
-import shlex
 import os
 
-def exec_func(interface, command, args):
-    """
-    Executes a function of the Interface class based on the given command and arguments.
-
-    Args:
-        interface: An instance of the Interface class
-        command: The command to execute (will be prefixed with 'command_')
-        args: Arguments to pass to the command function
-
-    This function uses Python's getattr to dynamically call the appropriate method
-    on the interface object based on the command name.
-
-    Returns:
-        The result of the executed function (if any)
-    """
-    try:
-        func = getattr(interface, 'command_' + command)
-        if interface.verbose:
-            print(f'\nExecuting {command}')
-        # Convert args string into a list using shlex and pass it to the function
-        return func(*shlex.shlex(args))
-    except AttributeError as e:
-        print(f"Error: Command '{command}' not found in interface")
-        raise e
-
-def exec_command_line_option(file_path=None, input_str=None, unknown_args=None):
-    """
-    Executes commands provided via command line arguments.
-
-    This function handles three types of inputs:
-    - File containing commands (specified with -f)
-    - Direct string input (specified with -i)
-    - Unknown arguments (invalid command)
-
-    Args:
-        file_path: Path to a file containing commands
-        input_str: String of commands to execute
-        unknown_args: List of unknown/unsupported arguments
-
-    If any valid input is provided, it will parse and execute the commands.
-    Invalid arguments will be reported and the program will exit.
-
-    This function:
-    1. Checks for inputs from file or direct string
-    2. Parses commands using appropriate parser functions
-    3. Executes each command through exec_func()
-    4. Handles exceptions and reports errors
-    """
-    if any([file_path, input_str, unknown_args]):
-        if not unknown_args:
-            try:
-                # Parse commands from file or string
-                actions = parse_file(file_path) if file_path else parse_args(input_str)
-                for action in actions:
-                    command, args = action
-                    exec_func(interface, command, args)
-            except Exception as e:
-                print(f"Error executing commands: {e}")
-        else:
-            print(f'Argument "{unknown_args[0]}" does not exist')
-        sys.exit()
-
 # Initialize the prompt session with history persistence
-input_session = PromptSession(history=FileHistory('.inp_history'))
 
 # Set up command line argument parser with subparsers for commands
 parser = argparse.ArgumentParser(description="EMP - Edge Management Platform",
@@ -132,9 +27,14 @@ parser.add_argument("--version", action="version",
 subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
 # Deploy command
-deploy_parser = subparsers.add_parser('deploy', help="Deploy a directory as a module")
-deploy_parser.add_argument('host', help="Host to deploy module on")
-deploy_parser.add_argument('directory', nargs='?', help="Directory to deploy")
+attached_parser = subparsers.add_parser('attached', help="Deploy a directory as a module and receive STDOUT")
+attached_parser.add_argument('host', help="Host to deploy module on")
+attached_parser.add_argument('directory', nargs='?', help="Directory to deploy")
+
+# Deploy command
+detached_parser = subparsers.add_parser('detached', help="Deploy a directory as a module using TMUX")
+detached_parser.add_argument('host', help="Host to deploy module on")
+detached_parser.add_argument('directory', nargs='?', help="Directory to deploy")
 
 # Command execution
 cmd_parser = subparsers.add_parser('command', help="Execute a command on a specific host")
@@ -169,7 +69,6 @@ module_name = os.path.basename(os.getcwd())  # Get the current module name from 
 
 # Read environment variables for rebuild/detach options
 rebuild_flag = bool(int(os.getenv('RB', 0)))  # Rebuild flag
-detached_mode = bool(int(os.getenv('DT', 0)))  # Detached execution flag
 
 # Initialize the interface with host connections
 host = args.host if 'host' in args else ''
@@ -180,27 +79,31 @@ command = args.command if 'command' in args else ''
 file_path = args.file
 input_str = args.input
 
-if command == 'deploy':
+if command == 'attached':
     if not args.directory:
         print("Usage: python emp deploy [<directory>]")
     else:
         directory = os.path.abspath(args.directory) # Get the directory name from path')
 
-        interface.command_module_par(args.directory, rebuild_flag, detached_mode)
+        interface.command_module_par(args.directory, rebuild_flag, False)
+elif command == 'detached':
+    if not args.directory:
+        print("Usage: python emp deploy [<directory>]")
+    else:
+        directory = os.path.abspath(args.directory) # Get the directory name from path')
 
+        interface.command_module_par(args.directory, rebuild_flag, True)
 elif command == 'command':
     try:
         cmd_text = args.cmd_text
         interface.command_exec(cmd_text)
     except AttributeError:
         print("Usage: python emp command [<host>] [<command>]")
-
 elif command == 'tty':
     try:
         interface.command_tty(host)
     except AttributeError:
         print("Usage: python emp tty [<host>]")
-
 elif command == 'check':
     try:
         pass

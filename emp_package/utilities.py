@@ -15,7 +15,7 @@ from datetime import datetime
 import os
 
 # Import logging configuration
-import log_utils
+from . import log_utils
 import logging
 
 logger = logging.getLogger(__name__)

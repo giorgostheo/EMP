@@ -8,6 +8,12 @@ EMP is a command-line tool for managing and executing tasks across multiple remo
 
 ## Installation
 
+## Installation Options
+
+You can install EMP either by cloning the repository or using pip.
+
+### Method 1: Traditional Installation (from source)
+
 Clone this repository and install dependencies:
 
 ```bash
@@ -16,9 +22,27 @@ cd EMP
 pip install -r requirements.txt
 ```
 
+### Method 2: Install via Pip
+
+You can also install EMP directly using pip:
+
+```bash
+pip install .
+```
+
+This will create a `.emp` directory in your home directory and copy the default `hosts.json` file there. If you already have a `hosts.json` from a previous installation, it will not be overwritten.
+
 ## Usage
 
-Run the CLI tool:
+## Usage (after pip install)
+
+If you installed via pip, you can run the CLI using:
+
+```bash
+emp [command] [options]
+```
+
+For traditional installation (from source), run:
 
 ```bash
 python emp [command] [options]
@@ -60,6 +84,12 @@ python emp [command] [options]
 
 ## Configuration
 
+## Configuration
+
+If you installed via pip:
+- The configuration files are located in your home directory's `.emp` folder.
+
+For traditional installation (from source):
 Edit the following configuration files to set up and customize EMP:
 
 - `hosts.json`: Define remote hosts and their connection details (hostname, port, username, password)
@@ -132,7 +162,6 @@ The project is currently in version 0.1 and is actively being developed. Contrib
  - Implement sanity checks for modules (make sure that they have a run.sh file for example).
  - Refactor complex parts of the codebase like the large function that checks all nodes.
  - Implement tests somehow...
- - Make changes and additions to publish to PyPy and make pip installable.
 
 ### License
 

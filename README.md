@@ -8,8 +8,6 @@ EMP is a command-line tool for managing and executing tasks across multiple remo
 
 ## Installation
 
-## Installation Options
-
 You can install EMP either by cloning the repository or using pip.
 
 ### Method 1: Traditional Installation (from source)
@@ -34,18 +32,10 @@ This will create a `.emp` directory in your home directory and copy the default 
 
 ## Usage
 
-## Usage (after pip install)
-
-If you installed via pip, you can run the CLI using:
+Once installed, you can run EMP using:
 
 ```bash
 emp [command] [options]
-```
-
-For traditional installation (from source), run:
-
-```bash
-python emp [command] [options]
 ```
 
 ### Basic Commands
@@ -53,48 +43,48 @@ python emp [command] [options]
 1. Display help message with available commands:
 
     ```bash
-    python emp --help
+    emp --help
     ```
 
 2. Execute a command on a specific host:
 
     ```bash
-    python emp command HOSTNAME  "ls -la"
+    emp command HOSTNAME "ls -la"
     ```
 
-3. Deploy a module to a specific host:
+3. Deploy a module to a specific host (attached mode):
 
     ```bash
-    python emp deploy HOSTNAME  ./path/to/module_directory
+    emp attached HOSTNAME ./path/to/module_directory
     ```
+   This will deploy the module and show real-time output from the execution.
+
+4. Deploy a module to a specific host (detached mode):
+
+    ```bash
+    emp detached HOSTNAME ./path/to/module_directory
+    ```
+   This will deploy the module using TMUX, allowing it to run in the background independently of your terminal session.
 
 ### Advanced Commands
 
-4. Open an interactive TTY session with a host:
+5. Open an interactive TTY session with a host:
 
     ```bash
-    python emp tty HOSTNAME 
+    emp tty HOSTNAME
     ```
 
-5. Check the status of all connected hosts:
+6. Check the status of all connected hosts:
 
     ```bash
-    python emp check
+    emp check
     ```
 
 ## Configuration
 
-## Configuration
-
-If you installed via pip:
-- The configuration files are located in your home directory's `.emp` folder.
-
-For traditional installation (from source):
-Edit the following configuration files to set up and customize EMP:
-
+The configuration files are located in your home directory's `.emp` folder, including:
 - `hosts.json`: Define remote hosts and their connection details (hostname, port, username, password)
-- `requirements.txt`: List Python dependencies for the CLI tool
-- `_version.py`: Set the version number of the package
+- Other module-specific configurations as needed
 
 ## Environment Variables
 
@@ -108,13 +98,13 @@ Control verbosity using the `V` environment variable:
 
 ```bash
 # Default (show errors only)
-V=0 python emp deploy HOSTNAME MODULE
+V=0 emp attached HOSTNAME MODULE
 
 # Standard level (info, warnings, errors)
-V=1 python emp deploy HOSTNAME MODULE
+V=1 emp detached HOSTNAME MODULE
 
 # Detailed debugging output
-V=2 python emp deploy HOSTNAME MODULE
+V=2 emp check
 ```
 
 ## Module Structure
@@ -142,7 +132,7 @@ EMP provides interactive shell access to remote hosts through its TTY command. T
 Example:
 
 ```bash
-python emp tty HOSTNAME 
+emp tty HOSTNAME
 ```
 
 ## Key Features

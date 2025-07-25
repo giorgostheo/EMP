@@ -66,6 +66,7 @@ class Interface():
         # Get the path to the package directory
         import pkg_resources
         hosts_path = pkg_resources.resource_filename('emp_package', 'hosts.json')
+        scribe(f"Reading hosts.json from {hosts_path}")
         with open(hosts_path) as f:
             hosts = json.load(f)
 
@@ -76,7 +77,10 @@ class Interface():
             else:
                 return {hostname:hosts[hostname]}
         else:
-            group = [name for name in hosts.keys() if name.startswith(hostname)]
+            if hostname=='all':
+                group = list(hosts.keys())
+            else:
+                group = [name for name in hosts.keys() if name.startswith(hostname)]
             logger.debug(f"[{time_str()}] | Hostname groups starting with {hostname}: {group}")
             if group:
                 result = {name:hosts[name] for name in group}
@@ -281,24 +285,12 @@ class Interface():
         # Check if any changes have been made to the module
         client.chdir(module)
         source_dir = os.path.abspath(module)
-        vc = VersionControl(client, source_dir, verbose)
+        vc = VersionControl(client, source_dir, False)
         vc.compare_modules()
         vc.update_target()
         should_rebuild = vc.should_rebuild
 
         return should_rebuild
-
-    def command_module_deploy(self, hostname, module):
-        '''
-        Builds the given module(runs requirements file)
-        '''
-        # Get the current working directory (where the module is located)
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        module_path = os.path.join(current_dir, '..', 'modules', module)
-
-        if 'init.sh' in os.listdir(module_path):
-            scribe('\n-Found init script..')
-            self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
 
     def command_module_exec(self, hostname, module):
         '''
@@ -310,7 +302,7 @@ class Interface():
         '''
         This runs an already deployed module (i.e. executes the run.sh file that needs to be present in the module dir)
         '''
-        self.command_exec(hostname, f'tmux new-session -d -s _emp_{module}_{int(time.time())} "cd modules/{module}; bash run.sh"')
+        self._command_exec_single(hostname, f'tmux new-session -d -s _emp_{module}_{int(time.time())} "cd modules/{module}; bash run.sh"')
         # pid = int(stdout.readline())
         # scribe("PID", pid)
 
@@ -323,11 +315,6 @@ class Interface():
         # SYNC
         scribe('\n-Syncing  module..')
         should_build = self.command_sync(hostname, module)
-
-        # DEPLOY
-        if should_build or rebuild:
-            scribe('\n-Building  module..')
-            self.command_module_deploy(hostname, module)
 
         # EXEC
         if detach:
@@ -351,7 +338,6 @@ class Interface():
         If a module already exists, validations or actions are being performed.
         E.g update enviroment/update files
         '''
-
         threads = []
 
         # Start a thread for each host
@@ -367,15 +353,3 @@ class Interface():
         for thread in threads:
             thread.join()
         
-
-    # ssh = createSSHClient(config['alpha']['host'], config['alpha']['port'], config['alpha']['uname'], config['alpha']['pass'])
-    # scp = SCPClient(ssh.get_transport())
-    # scp.put('script.sh', f"[{time_str()}] | {config['alpha']['paths']['user']}/config.json")
-    # stdin, stdout, stderr = ssh.exec_command('sudo -S bash script.sh',  get_pty=True)
-    # stdin.write(config['alpha']['pass'] + "\n")
-    # # stdin, stdout, stderr = ssh.exec_command('ls')
-    # stdin.flush()
-
-    # scribe(stdout.read())
-    # scribe(stderr.read())
-

@@ -4,6 +4,7 @@
 from ._version import __version__
 from .commands import Interface
 import sys
+from .utilities import time_str
 
 # Import logging configuration
 import logging
@@ -50,6 +51,7 @@ def main():
 
     # Check command
     check_parser = subparsers.add_parser('check', help="Check module status on a specific host")
+    check_parser.add_argument('host', nargs='?', const='all', help="Host to connect to")
 
     # Parse arguments
     args, unknown = parser.parse_known_args()
@@ -62,14 +64,12 @@ def main():
         parser.print_help()
         sys.exit()
 
-    # Extract and process command line arguments
-    module_name = os.path.basename(os.getcwd())  # Get the current module name from directory
-
     # Read environment variables for rebuild/detach options
     rebuild_flag = bool(int(os.getenv('RB', 0)))  # Rebuild flag
 
     # Initialize the interface with host connections
-    host = args.host if 'host' in args else ''
+    host = args.host or 'all'
+    logger.debug(f"[{time_str()}] | Variable host is set to {host}")
     interface = Interface(host)
 
     # Handle different commands based on parsing results
@@ -79,15 +79,11 @@ def main():
         if not args.directory:
             print("Usage: python emp deploy [<directory>]")
         else:
-            directory = os.path.abspath(args.directory) # Get the directory name from path')
-
             interface.command_module_par(args.directory, rebuild_flag, False)
     elif command == 'detached':
         if not args.directory:
             print("Usage: python emp deploy [<directory>]")
         else:
-            directory = os.path.abspath(args.directory) # Get the directory name from path')
-
             interface.command_module_par(args.directory, rebuild_flag, True)
     elif command == 'command':
         try:

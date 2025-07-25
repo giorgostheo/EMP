@@ -4,15 +4,17 @@ import re
 import paramiko
 from termcolor import colored
 from scp import SCPClient
-from interactive import interactive_shell
-from utilities import VersionControl, time_str, scribe
+# Import from within package
+from .interactive import interactive_shell
+# Import from within package
+from .utilities import VersionControl, time_str, scribe
 import sys
 import threading
 from threading import Lock
 from copy import copy
 
-# Import logging configuration
-import log_utils
+# Import from within package
+from . import log_utils
 import logging
 
 logger = logging.getLogger(__name__)
@@ -61,7 +63,12 @@ class Interface():
         self.command_checkall(host)
 
     def parse_hostname(self, hostname):
-        hosts = json.load(open('/Users/georgetheodoropoulos/Code/emeralds/EMP/hosts.json'))
+        # Get the path to the package directory
+        import pkg_resources
+        hosts_path = pkg_resources.resource_filename('emp_package', 'hosts.json')
+        scribe(f"Reading hosts.json from {hosts_path}")
+        with open(hosts_path) as f:
+            hosts = json.load(f)
 
         if hostname in hosts.keys():
             if hosts[hostname]['master_callsign']:
@@ -70,7 +77,10 @@ class Interface():
             else:
                 return {hostname:hosts[hostname]}
         else:
-            group = [name for name in hosts.keys() if name.startswith(hostname)]
+            if hostname=='all':
+                group = list(hosts.keys())
+            else:
+                group = [name for name in hosts.keys() if name.startswith(hostname)]
             logger.debug(f"[{time_str()}] | Hostname groups starting with {hostname}: {group}")
             if group:
                 result = {name:hosts[name] for name in group}
@@ -88,7 +98,10 @@ class Interface():
         client = paramiko.SSHClient()
         # client.load_system_host_keys()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(server, port, user, password=password, sock=sock, timeout=timeout, key_filename="/Users/georgetheodoropoulos/.ssh/id_rsa.pub")
+        # Use default SSH key path or let paramiko find it automatically
+        ssh_key = os.path.expanduser("~/.ssh/id_rsa.pub") if os.path.exists(os.path.expanduser("~/.ssh/id_rsa.pub")) else None
+
+        client.connect(server, port, user, password=password, sock=sock, timeout=timeout, key_filename=ssh_key)
         return client
     
     def command_checkall(self, host, verbose=False):
@@ -272,20 +285,12 @@ class Interface():
         # Check if any changes have been made to the module
         client.chdir(module)
         source_dir = os.path.abspath(module)
-        vc = VersionControl(client, source_dir, verbose)
+        vc = VersionControl(client, source_dir, False)
         vc.compare_modules()
         vc.update_target()
         should_rebuild = vc.should_rebuild
 
         return should_rebuild
-
-    def command_module_deploy(self, hostname, module):
-        '''
-        Builds the given module(runs requirements file)
-        '''
-        if 'init.sh' in os.listdir(f'.'):
-            scribe('\n-Found init script..')
-            self.command_exec(hostname, f'cd modules/{module}; bash init.sh')
 
     def command_module_exec(self, hostname, module):
         '''
@@ -297,7 +302,7 @@ class Interface():
         '''
         This runs an already deployed module (i.e. executes the run.sh file that needs to be present in the module dir)
         '''
-        self.command_exec(hostname, f'tmux new-session -d -s _emp_{module}_{int(time.time())} "cd modules/{module}; bash run.sh"')
+        self._command_exec_single(hostname, f'tmux new-session -d -s _emp_{module}_{int(time.time())} "cd modules/{module}; bash run.sh"')
         # pid = int(stdout.readline())
         # scribe("PID", pid)
 
@@ -311,11 +316,6 @@ class Interface():
         scribe('\n-Syncing  module..')
         should_build = self.command_sync(hostname, module)
 
-        # DEPLOY
-        if should_build or rebuild:
-            scribe('\n-Building  module..')
-            self.command_module_deploy(hostname, module)
-
         # EXEC
         if detach:
             scribe(f'\n-Running {module} in detached mode..')
@@ -324,13 +324,20 @@ class Interface():
             scribe(f'\n-Running {module} in stdout mode..')
             self.command_module_exec(hostname, module)
 
+    def get_hosts_file_path(self):
+        """
+        Get the path to the hosts.json file within the package.
+        This method can be used by other parts of the code that need to access the hosts configuration.
+        """
+        import pkg_resources
+        return pkg_resources.resource_filename('emp_package', 'hosts.json')
+
     def command_module_par(self, module, rebuild, detach):
         '''
         Responsible for syncing, deploying and executing a module.
         If a module already exists, validations or actions are being performed.
         E.g update enviroment/update files
         '''
-
         threads = []
 
         # Start a thread for each host
@@ -346,15 +353,3 @@ class Interface():
         for thread in threads:
             thread.join()
         
-
-    # ssh = createSSHClient(config['alpha']['host'], config['alpha']['port'], config['alpha']['uname'], config['alpha']['pass'])
-    # scp = SCPClient(ssh.get_transport())
-    # scp.put('script.sh', f"[{time_str()}] | {config['alpha']['paths']['user']}/config.json")
-    # stdin, stdout, stderr = ssh.exec_command('sudo -S bash script.sh',  get_pty=True)
-    # stdin.write(config['alpha']['pass'] + "\n")
-    # # stdin, stdout, stderr = ssh.exec_command('ls')
-    # stdin.flush()
-
-    # scribe(stdout.read())
-    # scribe(stderr.read())
-
